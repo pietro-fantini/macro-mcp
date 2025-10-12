@@ -132,10 +132,9 @@ Gets nutritional information for a food item per 100 grams.
 
 ```
 macro-mcp/
-├── app/
-│   └── api/
-│       └── mcp/
-│           └── route.js       # Vercel API route (HTTP transport)
+├── api/
+│   └── mcp/
+│       └── index.js          # Vercel serverless function (HTTP transport)
 ├── package.json
 ├── vercel.json               # Vercel configuration
 └── README.md
@@ -146,7 +145,7 @@ macro-mcp/
 ### Testing Locally with Vercel Dev
 
 ```bash
-npm run dev
+vercel dev
 ```
 
 This will start a local development server at `http://localhost:3000`

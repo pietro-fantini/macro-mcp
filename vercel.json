@@ -1,6 +1,6 @@
 {
   "functions": {
-    "app/api/mcp/route.js": {
+    "api/mcp/index.js": {
       "memory": 1024,
       "maxDuration": 10
     }
