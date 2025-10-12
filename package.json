@@ -1,0 +1,31 @@
+{
+  "name": "macro-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for retrieving nutritional information (calories and macronutrients) for foods using the Nutritionix API",
+  "type": "module",
+  "scripts": {
+    "build": "echo 'No build step required'"
+  },
+  "keywords": [
+    "mcp",
+    "nutrition",
+    "macronutrients",
+    "calories",
+    "nutritionix",
+    "food",
+    "health"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "mcp-handler": "^1.0.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "vercel": "^39.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
