@@ -130,8 +130,10 @@ const handler = createMcpHandler(
     version: "1.0.0",
   },
   {
-    // Keep basePath so endpoints are /api/mcp, /api/sse, /api/message
-    basePath: "/api",
+    // Set explicit endpoints for mcp-use deployment
+    streamableHttpEndpoint: "/mcp",
+    sseEndpoint: "/sse",
+    sseMessageEndpoint: "/message",
   }
 );
 
@@ -189,9 +191,9 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`MCP server running on port ${PORT}`);
   console.log(`HTTP endpoints:`);
-  console.log(`  - Streamable HTTP: http://localhost:${PORT}/api/mcp`);
-  console.log(`  - SSE: http://localhost:${PORT}/api/sse`);
-  console.log(`  - SSE message: http://localhost:${PORT}/api/message`);
+  console.log(`  - Streamable HTTP: http://localhost:${PORT}/mcp`);
+  console.log(`  - SSE: http://localhost:${PORT}/sse`);
+  console.log(`  - SSE message: http://localhost:${PORT}/message`);
 });
 
 
