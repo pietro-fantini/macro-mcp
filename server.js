@@ -89,10 +89,12 @@ const handler = createMcpHandler(
         food: z.string().describe('The name of the food item (e.g., "lamb", "chicken breast", "apple")'),
       },
       async ({ food }) => {
+        console.log(`[TOOL CALL] get_nutrition called with food: ${food}`);
         try {
           const result = await getNutritionData(food);
 
           if (result.error) {
+            console.log(`[TOOL RESULT] Error: ${result.message}`);
             return {
               content: [
                 {
@@ -103,6 +105,7 @@ const handler = createMcpHandler(
             };
           }
 
+          console.log(`[TOOL RESULT] Success for ${food}`);
           return {
             content: [
               {
@@ -112,6 +115,7 @@ const handler = createMcpHandler(
             ],
           };
         } catch (error) {
+          console.error(`[TOOL ERROR] ${error.message}`);
           return {
             content: [
               {
@@ -134,6 +138,16 @@ const handler = createMcpHandler(
     streamableHttpEndpoint: "/mcp",
     sseEndpoint: "/sse",
     sseMessageEndpoint: "/message",
+    verboseLogs: true,
+    // Event callback for detailed MCP event logging
+    onEvent: (event) => {
+      const timestamp = new Date(event.timestamp).toISOString();
+      console.log(`[MCP EVENT ${timestamp}] ${event.type}`, {
+        sessionId: event.sessionId,
+        requestId: event.requestId,
+        ...event
+      });
+    },
   }
 );
 
@@ -152,9 +166,15 @@ function nodeHeadersToWebHeaders(nodeHeaders) {
 }
 
 const server = createServer(async (req, res) => {
+  const requestStart = Date.now();
+  const method = req.method || 'GET';
+  const path = req.url || '/';
+  
+  console.log(`[HTTP REQUEST] ${method} ${path}`);
+  console.log(`[HTTP HEADERS]`, req.headers);
+  
   try {
-    const url = `http://localhost:${PORT}${req.url || '/'}`;
-    const method = req.method || 'GET';
+    const url = `http://localhost:${PORT}${path}`;
     const headers = nodeHeadersToWebHeaders(req.headers);
 
     const init = { method, headers };
@@ -175,25 +195,44 @@ const server = createServer(async (req, res) => {
     }
     res.writeHead(response.status, resHeaders);
 
+    console.log(`[HTTP RESPONSE] ${response.status} for ${method} ${path}`);
+
     if (response.body) {
       // Stream response body (supports SSE and streaming HTTP)
-      Readable.fromWeb(response.body).pipe(res);
+      const stream = Readable.fromWeb(response.body);
+      stream.pipe(res);
+      
+      stream.on('end', () => {
+        const duration = Date.now() - requestStart;
+        console.log(`[HTTP COMPLETE] ${method} ${path} - ${duration}ms`);
+      });
     } else {
       const text = await response.text();
       res.end(text);
+      const duration = Date.now() - requestStart;
+      console.log(`[HTTP COMPLETE] ${method} ${path} - ${duration}ms`);
     }
   } catch (err) {
+    console.error(`[HTTP ERROR] ${method} ${path}:`, err);
     res.statusCode = 500;
     res.end(`Internal Server Error: ${err instanceof Error ? err.message : String(err)}`);
   }
 });
 
 server.listen(PORT, () => {
-  console.log(`MCP server running on port ${PORT}`);
-  console.log(`HTTP endpoints:`);
+  console.log(`\n${'='.repeat(60)}`);
+  console.log(`🚀 MCP server running on port ${PORT}`);
+  console.log(`${'='.repeat(60)}`);
+  console.log(`\n📡 HTTP endpoints:`);
   console.log(`  - Streamable HTTP: http://localhost:${PORT}/mcp`);
   console.log(`  - SSE: http://localhost:${PORT}/sse`);
   console.log(`  - SSE message: http://localhost:${PORT}/message`);
+  console.log(`\n🔑 Environment:`);
+  console.log(`  - NUTRITIONIX_API_ID: ${API_ID ? '✓ Set' : '✗ Missing'}`);
+  console.log(`  - NUTRITIONIX_API_KEY: ${API_KEY ? '✓ Set' : '✗ Missing'}`);
+  console.log(`\n🛠️  Available tools:`);
+  console.log(`  - get_nutrition: Get nutritional info for food items`);
+  console.log(`\n${'='.repeat(60)}\n`);
 });
 
 
