@@ -1,3 +1,5 @@
+import { createServer } from 'node:http';
+import { Readable } from 'node:stream';
 import { z } from 'zod';
 import { createMcpHandler } from 'mcp-handler';
 
@@ -37,7 +39,6 @@ async function getNutritionData(food) {
 
   const foodData = data.foods[0];
 
-  // Extract key nutritional information
   const nutrition = {
     food_name: foodData.food_name,
     serving_size: `${foodData.serving_qty} ${foodData.serving_unit}`,
@@ -53,7 +54,6 @@ async function getNutritionData(food) {
     potassium: foodData.nf_potassium,
   };
 
-  // Format the response
   const formattedText = `
 Nutritional Information for ${nutrition.food_name} (per 100g):
 
@@ -79,6 +79,7 @@ Other:
   };
 }
 
+// Build the MCP handler using the same server definition as the Vercel function
 const handler = createMcpHandler(
   (server) => {
     server.tool(
@@ -129,8 +130,68 @@ const handler = createMcpHandler(
     version: "1.0.0",
   },
   {
+    // Keep basePath so endpoints are /api/mcp, /api/sse, /api/message
     basePath: "/api",
   }
 );
 
-export { handler as GET, handler as POST, handler as DELETE };
+const PORT = process.env.PORT || 3000;
+
+function nodeHeadersToWebHeaders(nodeHeaders) {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(nodeHeaders)) {
+    if (Array.isArray(value)) {
+      for (const v of value) headers.append(key, v);
+    } else if (typeof value === 'string') {
+      headers.set(key, value);
+    }
+  }
+  return headers;
+}
+
+const server = createServer(async (req, res) => {
+  try {
+    const url = `http://localhost:${PORT}${req.url || '/'}`;
+    const method = req.method || 'GET';
+    const headers = nodeHeadersToWebHeaders(req.headers);
+
+    const init = { method, headers };
+    if (method !== 'GET' && method !== 'HEAD') {
+      // Stream request body to fetch Request
+      init.body = Readable.toWeb(req);
+      // @ts-ignore - Node fetch requires duplex for streaming request bodies
+      init.duplex = 'half';
+    }
+
+    const webRequest = new Request(url, init);
+    const response = await handler(webRequest);
+
+    // Write status and headers
+    const resHeaders = {};
+    for (const [k, v] of response.headers.entries()) {
+      resHeaders[k] = v;
+    }
+    res.writeHead(response.status, resHeaders);
+
+    if (response.body) {
+      // Stream response body (supports SSE and streaming HTTP)
+      Readable.fromWeb(response.body).pipe(res);
+    } else {
+      const text = await response.text();
+      res.end(text);
+    }
+  } catch (err) {
+    res.statusCode = 500;
+    res.end(`Internal Server Error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`MCP server running on port ${PORT}`);
+  console.log(`HTTP endpoints:`);
+  console.log(`  - Streamable HTTP: http://localhost:${PORT}/api/mcp`);
+  console.log(`  - SSE: http://localhost:${PORT}/api/sse`);
+  console.log(`  - SSE message: http://localhost:${PORT}/api/message`);
+});
+
+

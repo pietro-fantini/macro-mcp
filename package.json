@@ -4,7 +4,8 @@
   "description": "MCP server for retrieving nutritional information (calories and macronutrients) for foods using the Nutritionix API",
   "type": "module",
   "scripts": {
-    "build": "echo 'No build step required'"
+    "build": "echo 'No build step required'",
+    "start": "node server.js"
   },
   "keywords": [
     "mcp",
