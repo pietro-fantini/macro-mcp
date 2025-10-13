@@ -2,10 +2,33 @@ import { createServer } from 'node:http';
 import { Readable } from 'node:stream';
 import { z } from 'zod';
 import { createMcpHandler } from 'mcp-handler';
+import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
+
+const { Pool } = pg;
 
 const API_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients";
 const API_KEY = process.env.NUTRITIONIX_API_KEY;
 const API_ID = process.env.NUTRITIONIX_API_ID;
+
+// Supabase configuration
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_DB_URL = process.env.SUPABASE_DB_URL; // Direct Postgres connection string
+
+// Initialize Supabase client (for inserts using the JS client)
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+// Initialize PostgreSQL pool (for raw SQL queries)
+let pgPool = null;
+if (SUPABASE_DB_URL) {
+  pgPool = new Pool({
+    connectionString: SUPABASE_DB_URL,
+  });
+}
 
 async function getNutritionData(food) {
   if (!API_KEY || !API_ID) {
@@ -89,12 +112,13 @@ const handler = createMcpHandler(
         food: z.string().describe('The name of the food item (e.g., "lamb", "chicken breast", "apple")'),
       },
       async ({ food }) => {
-        console.log(`[TOOL CALL] get_nutrition called with food: ${food}`);
+        const logMsg = `[TOOL CALL] get_nutrition called with food: ${food}`;
+        process.stderr.write(logMsg + '\n');
         try {
           const result = await getNutritionData(food);
 
           if (result.error) {
-            console.log(`[TOOL RESULT] Error: ${result.message}`);
+            process.stderr.write(`[TOOL RESULT] Error: ${result.message}\n`);
             return {
               content: [
                 {
@@ -105,7 +129,7 @@ const handler = createMcpHandler(
             };
           }
 
-          console.log(`[TOOL RESULT] Success for ${food}`);
+          process.stderr.write(`[TOOL RESULT] Success for ${food}\n`);
           return {
             content: [
               {
@@ -115,12 +139,124 @@ const handler = createMcpHandler(
             ],
           };
         } catch (error) {
-          console.error(`[TOOL ERROR] ${error.message}`);
+          process.stderr.write(`[TOOL ERROR] ${error.message}\n`);
           return {
             content: [
               {
                 type: "text",
                 text: `Error fetching nutritional information: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    server.tool(
+      'save_meal_macros',
+      'Save meal macros to Supabase fact_meal_macros table. Records a meal with its nutritional information and items.',
+      {
+        user_id: z.string().describe('The ID of the user recording this meal'),
+        meal: z.enum(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra'])
+          .describe('The type of meal being recorded'),
+        calories: z.number().int().describe('Total calories of the meal (integer)'),
+        macros: z.record(z.number()).describe('Macronutrients as key-value pairs (e.g., {"protein": 25.5, "carbs": 30.2, "fat": 10.5, "sodium_mg": 150})'),
+        meal_items: z.record(z.number()).describe('Meal items with quantities (e.g., {"chicken breast": 150, "rice": 100})'),
+      },
+      async ({ user_id, meal, calories, macros, meal_items }) => {
+        process.stderr.write(`[TOOL CALL] save_meal_macros called for user: ${user_id}, meal: ${meal}\n`);
+        try {
+          if (!supabase) {
+            throw new Error("Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
+          }
+
+          // Generate UUID for the meal ID
+          const id = crypto.randomUUID();
+          const created_at = new Date().toISOString();
+
+          // Insert into Supabase
+          const { data, error } = await supabase
+            .from('fact_meal_macros')
+            .insert({
+              id,
+              created_at,
+              user_id,
+              meal,
+              calories,
+              macros,
+              meal_items
+            })
+            .select()
+            .single();
+
+          if (error) {
+            throw new Error(`Supabase error: ${error.message}`);
+          }
+
+          process.stderr.write(`[TOOL RESULT] Meal saved with ID: ${id}\n`);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: `✅ Meal saved successfully!\n\nMeal ID: ${id}\nUser: ${user_id}\nMeal Type: ${meal}\nCalories: ${calories}\nCreated_at: ${created_at}\n\nMacros: ${JSON.stringify(macros, null, 2)}\nItems: ${JSON.stringify(meal_items, null, 2)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          process.stderr.write(`[TOOL ERROR] ${error.message}\n`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error saving meal macros: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    server.tool(
+      'query_meal_data',
+      'Query meal data from Supabase. Execute SQL queries to retrieve meal history, aggregations, or specific records from fact_meal_macros table.',
+      {
+        query: z.string().describe('SQL query to execute (e.g., "SELECT * FROM fact_meal_macros WHERE user_id = \'123\' ORDER BY created_at DESC LIMIT 10")'),
+      },
+      async ({ query }) => {
+        process.stderr.write(`[TOOL CALL] query_meal_data called with query: ${query.substring(0, 100)}...\n`);
+        try {
+          if (!pgPool) {
+            throw new Error("PostgreSQL connection is not configured. Please set SUPABASE_DB_URL environment variable.");
+          }
+
+          // Execute the SQL query using PostgreSQL pool
+          const result = await pgPool.query(query);
+
+          process.stderr.write(`[TOOL RESULT] Query executed successfully, returned ${result.rows?.length || 0} rows\n`);
+          
+          // Format the results nicely
+          const resultText = result.rows && result.rows.length > 0
+            ? `Query Results (${result.rows.length} rows):\n\n${JSON.stringify(result.rows, null, 2)}`
+            : 'Query executed successfully. No results returned.';
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: resultText,
+              },
+            ],
+          };
+        } catch (error) {
+          process.stderr.write(`[TOOL ERROR] ${error.message}\n`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error executing query: ${error.message}`,
               },
             ],
             isError: true,
@@ -142,11 +278,7 @@ const handler = createMcpHandler(
     // Event callback for detailed MCP event logging
     onEvent: (event) => {
       const timestamp = new Date(event.timestamp).toISOString();
-      console.log(`[MCP EVENT ${timestamp}] ${event.type}`, {
-        sessionId: event.sessionId,
-        requestId: event.requestId,
-        ...event
-      });
+      process.stderr.write(`[MCP EVENT ${timestamp}] ${event.type} - Session: ${event.sessionId}, Request: ${event.requestId}\n`);
     },
   }
 );
@@ -170,8 +302,7 @@ const server = createServer(async (req, res) => {
   const method = req.method || 'GET';
   const path = req.url || '/';
   
-  console.log(`[HTTP REQUEST] ${method} ${path}`);
-  console.log(`[HTTP HEADERS]`, req.headers);
+  process.stderr.write(`[HTTP REQUEST] ${method} ${path}\n`);
   
   try {
     const url = `http://localhost:${PORT}${path}`;
@@ -195,7 +326,7 @@ const server = createServer(async (req, res) => {
     }
     res.writeHead(response.status, resHeaders);
 
-    console.log(`[HTTP RESPONSE] ${response.status} for ${method} ${path}`);
+    process.stderr.write(`[HTTP RESPONSE] ${response.status} for ${method} ${path}\n`);
 
     if (response.body) {
       // Stream response body (supports SSE and streaming HTTP)
@@ -204,16 +335,16 @@ const server = createServer(async (req, res) => {
       
       stream.on('end', () => {
         const duration = Date.now() - requestStart;
-        console.log(`[HTTP COMPLETE] ${method} ${path} - ${duration}ms`);
+        process.stderr.write(`[HTTP COMPLETE] ${method} ${path} - ${duration}ms\n`);
       });
     } else {
       const text = await response.text();
       res.end(text);
       const duration = Date.now() - requestStart;
-      console.log(`[HTTP COMPLETE] ${method} ${path} - ${duration}ms`);
+      process.stderr.write(`[HTTP COMPLETE] ${method} ${path} - ${duration}ms\n`);
     }
   } catch (err) {
-    console.error(`[HTTP ERROR] ${method} ${path}:`, err);
+    process.stderr.write(`[HTTP ERROR] ${method} ${path}: ${err}\n`);
     res.statusCode = 500;
     res.end(`Internal Server Error: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -230,8 +361,18 @@ server.listen(PORT, () => {
   console.log(`\n🔑 Environment:`);
   console.log(`  - NUTRITIONIX_API_ID: ${API_ID ? '✓ Set' : '✗ Missing'}`);
   console.log(`  - NUTRITIONIX_API_KEY: ${API_KEY ? '✓ Set' : '✗ Missing'}`);
+  console.log(`  - SUPABASE_URL: ${SUPABASE_URL ? '✓ Set' : '✗ Missing'}`);
+  console.log(`  - SUPABASE_ANON_KEY: ${SUPABASE_KEY ? '✓ Set' : '✗ Missing'}`);
+  console.log(`  - SUPABASE_DB_URL: ${SUPABASE_DB_URL ? '✓ Set' : '✗ Missing'}`);
   console.log(`\n🛠️  Available tools:`);
-  console.log(`  - get_nutrition: Get nutritional info for food items`);
+  console.log(`  1. get_nutrition: Get nutritional info for food items (per 100g)`);
+  console.log(`  2. save_meal_macros: Save meal data to Supabase fact_meal_macros table`);
+  console.log(`  3. query_meal_data: Query meal data from Supabase with raw SQL`);
+  console.log(`\n📊 Database Integration:`);
+  console.log(`  - Supabase Client: ${supabase ? '✓ Connected' : '✗ Not configured'} (for inserts)`);
+  console.log(`  - PostgreSQL Pool: ${pgPool ? '✓ Connected' : '✗ Not configured'} (for queries)`);
+  console.log(`  - Table: fact_meal_macros`);
+  console.log(`  - Features: Save meals, query history, track macros`);
   console.log(`\n${'='.repeat(60)}\n`);
 });
 
