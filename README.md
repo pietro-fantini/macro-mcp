@@ -116,16 +116,19 @@ Once configured in Claude Desktop or Cursor, you can use the MCP server for vari
 ### Meal Tracking
 
 **Example prompts:**
-- "Save my breakfast: 2 eggs (100g), toast (50g), avocado (40g) - 450 calories with 25g protein, 30g carbs, 28g fat"
-- "Record my lunch for user 'john123'"
-- "Log this dinner meal with its macros"
+- "Save my breakfast from today: 2 eggs (100g), toast (50g), avocado (40g) - 450 calories with 25g protein, 30g carbs, 28g fat"
+- "Record my lunch from yesterday (2025-10-12) for user 'john123'"
+- "Log this dinner meal from October 10th with its macros"
+
+**Note:** You can log meals retroactively by specifying the date when the meal was actually consumed, even if you're recording it days later.
 
 ### Querying Meal History
 
 **Example prompts:**
-- "Show me my last 10 meals"
-- "What was my total calorie intake today?"
-- "Get all my breakfast meals from this week"
+- "Show me all my meals from October 13, 2025"
+- "What was my total calorie intake on October 12?"
+- "Get all my breakfast meals from last week"
+- "Show me my daily calorie totals for the last 7 days"
 - "Calculate average calories per meal type"
 
 ### Example Output
@@ -173,6 +176,7 @@ Save meal macros to Supabase `fact_meal_macros` table. Records a complete meal w
 **Parameters:**
 - `user_id` (string, required): The ID of the user recording this meal
 - `meal` (enum, required): Type of meal - one of: `breakfast`, `morning_snack`, `lunch`, `afternoon_snack`, `dinner`, `extra`
+- `meal_day` (string, required): The date when the meal was consumed in YYYY-MM-DD format (e.g., "2025-10-13"). This can be different from when the meal is recorded, allowing users to log meals retroactively.
 - `calories` (integer, required): Total calories of the meal
 - `macros` (object, required): Macronutrients as key-value pairs
   - Example: `{"protein": 25.5, "carbs": 30.2, "fat": 10.5, "fiber": 5.0, "sodium_mg": 150, "cholesterol_mg": 45}`
@@ -184,26 +188,40 @@ Save meal macros to Supabase `fact_meal_macros` table. Records a complete meal w
 
 **Example usage:**
 ```
-Save my lunch: 150g chicken breast, 100g rice, 80g broccoli
+Save my lunch from yesterday (2025-10-12): 150g chicken breast, 100g rice, 80g broccoli
 Total calories: 450
 Macros: 45g protein, 50g carbs, 8g fat
 ```
+
+**Note:** The `meal_day` field allows logging meals retroactively. For example, you can record meals from previous days by specifying the date when they were actually consumed, even if you're entering them later.
 
 ### 3. query_meal_data
 
 Query meal data from Supabase. Execute SQL queries to retrieve meal history, aggregations, or specific records.
 
+**Available columns:**
+- `id`: UUID - Unique meal identifier
+- `created_at`: TIMESTAMP - When the meal was recorded
+- `user_id`: TEXT - User identifier
+- `meal`: TEXT - Type of meal (breakfast, morning_snack, lunch, afternoon_snack, dinner, extra)
+- `meal_day`: DATE - The day when the meal was consumed
+- `calories`: INTEGER - Total calories
+- `macros`: JSONB - Macronutrient data
+- `meal_items`: JSONB - Food items and quantities
+
 **Parameters:**
 - `query` (string, required): SQL query to execute against the `fact_meal_macros` table
-  - Example: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' ORDER BY created DESC LIMIT 10`
+  - Example: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13'`
 
 **Returns:**
-- Query results or instructions to use the Supabase MCP server
+- Query results formatted as JSON
 
 **Example queries:**
-- Get last 10 meals: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' ORDER BY created DESC LIMIT 10`
-- Total calories today: `SELECT SUM(calories) FROM fact_meal_macros WHERE user_id = 'user123' AND DATE(created) = CURRENT_DATE`
-- Meals by type: `SELECT meal, COUNT(*), AVG(calories) FROM fact_meal_macros WHERE user_id = 'user123' GROUP BY meal`
+- Get meals for a specific day: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13' ORDER BY meal`
+- Get last 10 recorded meals: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' ORDER BY created_at DESC LIMIT 10`
+- Total calories for a specific day: `SELECT SUM(calories) FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13'`
+- Daily calorie totals for the last 7 days: `SELECT meal_day, SUM(calories) as total_calories FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day >= CURRENT_DATE - INTERVAL '7 days' GROUP BY meal_day ORDER BY meal_day DESC`
+- Average calories by meal type: `SELECT meal, COUNT(*) as count, AVG(calories) as avg_calories FROM fact_meal_macros WHERE user_id = 'user123' GROUP BY meal`
 
 ## Database Schema
 
@@ -212,11 +230,12 @@ The `fact_meal_macros` table in Supabase should have the following structure:
 ```sql
 CREATE TABLE fact_meal_macros (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  created TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE,
   deleted_at TIMESTAMP WITH TIME ZONE,
   user_id TEXT NOT NULL,
-  meal TEXT CHECK (meal IN ('breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra')),
+  meal TEXT NOT NULL CHECK (meal IN ('breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra')),
+  meal_day DATE NOT NULL,
   calories INTEGER NOT NULL,
   macros JSONB NOT NULL,
   meal_items JSONB NOT NULL
@@ -224,9 +243,15 @@ CREATE TABLE fact_meal_macros (
 
 -- Create indexes for better query performance
 CREATE INDEX idx_meal_macros_user_id ON fact_meal_macros(user_id);
-CREATE INDEX idx_meal_macros_created ON fact_meal_macros(created DESC);
+CREATE INDEX idx_meal_macros_created_at ON fact_meal_macros(created_at DESC);
 CREATE INDEX idx_meal_macros_meal ON fact_meal_macros(meal);
+CREATE INDEX idx_meal_macros_meal_day ON fact_meal_macros(meal_day DESC);
+CREATE INDEX idx_meal_macros_user_meal_day ON fact_meal_macros(user_id, meal_day DESC);
 ```
+
+**Key fields:**
+- `created_at`: Timestamp when the meal record was created (when it was logged in the system)
+- `meal_day`: Date when the meal was actually consumed (allows retroactive logging)
 
 ### JSONB Field Examples
 
@@ -262,11 +287,12 @@ CREATE INDEX idx_meal_macros_meal ON fact_meal_macros(meal);
 ```sql
 CREATE TABLE IF NOT EXISTS fact_meal_macros (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  created TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE,
   deleted_at TIMESTAMP WITH TIME ZONE,
   user_id TEXT NOT NULL,
   meal TEXT NOT NULL CHECK (meal IN ('breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra')),
+  meal_day DATE NOT NULL,
   calories INTEGER NOT NULL,
   macros JSONB NOT NULL,
   meal_items JSONB NOT NULL
@@ -274,9 +300,10 @@ CREATE TABLE IF NOT EXISTS fact_meal_macros (
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_meal_macros_user_id ON fact_meal_macros(user_id);
-CREATE INDEX IF NOT EXISTS idx_meal_macros_created ON fact_meal_macros(created DESC);
+CREATE INDEX IF NOT EXISTS idx_meal_macros_created_at ON fact_meal_macros(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_meal_macros_meal ON fact_meal_macros(meal);
-CREATE INDEX IF NOT EXISTS idx_meal_macros_user_created ON fact_meal_macros(user_id, created DESC);
+CREATE INDEX IF NOT EXISTS idx_meal_macros_meal_day ON fact_meal_macros(meal_day DESC);
+CREATE INDEX IF NOT EXISTS idx_meal_macros_user_meal_day ON fact_meal_macros(user_id, meal_day DESC);
 ```
 
 3. **Get your Supabase credentials** from the project settings:

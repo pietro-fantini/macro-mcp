@@ -160,12 +160,13 @@ const handler = createMcpHandler(
         user_id: z.string().describe('The ID of the user recording this meal'),
         meal: z.enum(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra'])
           .describe('The type of meal being recorded'),
+        meal_day: z.string().describe('The date when the meal was consumed in YYYY-MM-DD format (e.g., "2025-10-13"). This can be different from when the meal is recorded.'),
         calories: z.number().int().describe('Total calories of the meal (integer)'),
         macros: z.record(z.number()).describe('Macronutrients as key-value pairs (e.g., {"protein": 25.5, "carbs": 30.2, "fat": 10.5, "sodium_mg": 150})'),
         meal_items: z.record(z.number()).describe('Meal items with quantities (e.g., {"chicken breast": 150, "rice": 100})'),
       },
-      async ({ user_id, meal, calories, macros, meal_items }) => {
-        process.stderr.write(`[TOOL CALL] save_meal_macros called for user: ${user_id}, meal: ${meal}\n`);
+      async ({ user_id, meal, meal_day, calories, macros, meal_items }) => {
+        process.stderr.write(`[TOOL CALL] save_meal_macros called for user: ${user_id}, meal: ${meal}, meal_day: ${meal_day}\n`);
         try {
           if (!supabase) {
             throw new Error("Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
@@ -183,6 +184,7 @@ const handler = createMcpHandler(
               created_at,
               user_id,
               meal,
+              meal_day,
               calories,
               macros,
               meal_items
@@ -200,7 +202,7 @@ const handler = createMcpHandler(
             content: [
               {
                 type: "text",
-                text: `✅ Meal saved successfully!\n\nMeal ID: ${id}\nUser: ${user_id}\nMeal Type: ${meal}\nCalories: ${calories}\nCreated_at: ${created_at}\n\nMacros: ${JSON.stringify(macros, null, 2)}\nItems: ${JSON.stringify(meal_items, null, 2)}`,
+                text: `✅ Meal saved successfully!\n\nMeal ID: ${id}\nUser: ${user_id}\nMeal Type: ${meal}\nMeal Day: ${meal_day}\nCalories: ${calories}\nRecorded at: ${created_at}\n\nMacros: ${JSON.stringify(macros, null, 2)}\nItems: ${JSON.stringify(meal_items, null, 2)}`,
               },
             ],
           };
@@ -221,9 +223,9 @@ const handler = createMcpHandler(
 
     server.tool(
       'query_meal_data',
-      'Query meal data from Supabase. Execute SQL queries to retrieve meal history, aggregations, or specific records from fact_meal_macros table.',
+      'Query meal data from Supabase. Execute SQL queries to retrieve meal history, aggregations, or specific records from fact_meal_macros table. Available columns: id, created_at (timestamp when recorded), user_id, meal, meal_day (date when consumed), calories, macros (jsonb), meal_items (jsonb).',
       {
-        query: z.string().describe('SQL query to execute (e.g., "SELECT * FROM fact_meal_macros WHERE user_id = \'123\' ORDER BY created_at DESC LIMIT 10")'),
+        query: z.string().describe('SQL query to execute (e.g., "SELECT * FROM fact_meal_macros WHERE user_id = \'123\' AND meal_day = \'2025-10-13\' ORDER BY created_at DESC")'),
       },
       async ({ query }) => {
         process.stderr.write(`[TOOL CALL] query_meal_data called with query: ${query.substring(0, 100)}...\n`);
