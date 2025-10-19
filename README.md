@@ -167,6 +167,110 @@ For mcp-use hosted deployment:
 
 **Important**: Restart Claude Desktop completely after updating the config.
 
+## OAuth 2.1 Authentication
+
+This MCP server supports OAuth 2.1 authentication with PKCE, allowing users to authenticate securely without manually managing API tokens. The server acts as an OAuth proxy, redirecting authentication to Supabase Auth.
+
+### How It Works
+
+1. **User adds MCP server** in Claude/Cursor
+2. **OAuth discovery**: Claude automatically discovers OAuth endpoints
+3. **User redirected to login**: Supabase Auth login page (Google, GitHub, etc.)
+4. **Token exchange**: After successful login, tokens are automatically managed
+5. **Automatic authentication**: All subsequent MCP requests include the user's token
+
+### Setup Instructions
+
+#### 1. Configure OAuth Provider in Supabase
+
+1. Go to your Supabase Dashboard → Authentication → Providers
+2. Enable your preferred provider (Google, GitHub, etc.)
+3. Configure the provider with your OAuth credentials
+4. **Important**: Add the callback URL to your provider settings:
+   ```
+   https://your-project.supabase.co/auth/v1/callback
+   ```
+
+#### 2. Add OAuth Callback URL
+
+In your Supabase Dashboard → Authentication → URL Configuration:
+
+For **local development**:
+```
+http://localhost:3000/oauth/callback
+```
+
+For **production** (mcp-use):
+```
+https://your-deployed-url.com/oauth/callback
+```
+
+#### 3. Set Environment Variables
+
+Add to your `.env` file:
+```bash
+PORT=3000
+BASE_URL=http://localhost:3000  # For local dev
+# BASE_URL=https://your-deployed-url.com  # For production
+```
+
+#### 4. Connect in Claude
+
+When adding the MCP server in Claude's "Add custom connector" UI:
+
+- **Name**: `macro-mcp` (or any name you prefer)
+- **Remote MCP server URL**: Your server URL (e.g., `https://your-deployed-url.com`)
+- **OAuth Client ID**: Leave empty (uses dynamic registration)
+- **OAuth Client Secret**: Leave empty (public client with PKCE)
+
+Claude will automatically:
+1. Discover OAuth configuration at `/.well-known/oauth-authorization-server`
+2. Register as a client dynamically
+3. Redirect you to Supabase login
+4. Handle token exchange
+5. Include tokens in all MCP requests
+
+### OAuth Endpoints
+
+The server exposes these OAuth endpoints:
+
+- `/.well-known/oauth-authorization-server` - OAuth discovery (RFC 8414)
+- `/oauth/register` - Dynamic client registration (RFC 7591)
+- `/oauth/authorize` - Authorization endpoint
+- `/oauth/token` - Token endpoint
+- `/oauth/callback` - Supabase callback handler
+
+### Security Features
+
+- ✅ **PKCE (RFC 7636)**: Prevents authorization code interception
+- ✅ **Dynamic Client Registration**: No pre-shared secrets needed
+- ✅ **Short-lived Codes**: Authorization codes expire in 1 minute
+- ✅ **Single-use Codes**: Each code can only be exchanged once
+- ✅ **Token Validation**: All MCP requests validate Supabase tokens
+- ✅ **Automatic Scoping**: Queries automatically filtered to authenticated user
+
+### User Experience
+
+Once authenticated:
+- ✅ **No manual user_id**: The `save_meal_macros` tool automatically uses the authenticated user
+- ✅ **Automatic query scoping**: The `query_meal_data` tool automatically filters to the user's data
+- ✅ **Persistent sessions**: Tokens are managed by Claude/Cursor
+- ✅ **Secure**: No tokens exposed to the user
+
+### Troubleshooting OAuth
+
+**Issue**: "Invalid redirect_uri"
+- **Solution**: Ensure the callback URL is configured in Supabase Dashboard → Authentication → URL Configuration
+
+**Issue**: "Authentication failed: invalid_grant"
+- **Solution**: Check that your Supabase OAuth provider is properly configured with valid credentials
+
+**Issue**: OAuth flow starts but redirects to error page
+- **Solution**: Verify that `BASE_URL` environment variable matches your deployed URL exactly
+
+**Issue**: "Invalid or expired token" in MCP requests
+- **Solution**: Re-authenticate by disconnecting and reconnecting the MCP server in Claude
+
 ## Usage
 
 Once configured in Claude Desktop or Cursor, you can use the MCP server for various nutrition and meal tracking tasks:
@@ -239,7 +343,6 @@ Gets nutritional information for a food item per 100 grams.
 Save meal macros to Supabase `fact_meal_macros` table. Records a complete meal with nutritional information and items.
 
 **Parameters:**
-- `user_id` (string, required): The ID of the user recording this meal
 - `meal` (enum, required): Type of meal - one of: `breakfast`, `morning_snack`, `lunch`, `afternoon_snack`, `dinner`, `extra`
 - `meal_day` (string, required): The date when the meal was consumed in YYYY-MM-DD format (e.g., "2025-10-13"). This can be different from when the meal is recorded, allowing users to log meals retroactively.
 - `calories` (integer, required): Total calories of the meal
@@ -251,6 +354,11 @@ Save meal macros to Supabase `fact_meal_macros` table. Records a complete meal w
 **Returns:**
 - Confirmation with meal ID, timestamp, and full meal details
 
+**Authentication:**
+- 🔒 **OAuth Required**: This tool requires OAuth authentication
+- ✅ **Automatic user_id**: The authenticated user's ID is automatically applied
+- ✅ **No manual user_id needed**: Users don't need to specify their ID
+
 **Example usage:**
 ```
 Save my lunch from yesterday (2025-10-12): 150g chicken breast, 100g rice, 80g broccoli
@@ -258,7 +366,9 @@ Total calories: 450
 Macros: 45g protein, 50g carbs, 8g fat
 ```
 
-**Note:** The `meal_day` field allows logging meals retroactively. For example, you can record meals from previous days by specifying the date when they were actually consumed, even if you're entering them later.
+**Notes:** 
+- The `meal_day` field allows logging meals retroactively. For example, you can record meals from previous days by specifying the date when they were actually consumed, even if you're entering them later.
+- With OAuth enabled, you don't need to specify `user_id` - it's automatically determined from your authenticated session.
 
 ### 3. query_meal_data
 
@@ -276,17 +386,24 @@ Query meal data from Supabase. Execute SQL queries to retrieve meal history, agg
 
 **Parameters:**
 - `query` (string, required): SQL query to execute against the `fact_meal_macros` table
-  - Example: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13'`
+  - Example: `SELECT * FROM fact_meal_macros WHERE meal_day = '2025-10-13'`
 
 **Returns:**
 - Query results formatted as JSON
 
+**Authentication:**
+- 🔒 **OAuth Required**: This tool requires OAuth authentication
+- ✅ **Automatic scoping**: Queries are automatically filtered to only return the authenticated user's data
+- ✅ **No manual user_id needed**: You don't need to include `WHERE user_id = '...'` in your queries
+
 **Example queries:**
-- Get meals for a specific day: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13' ORDER BY meal`
-- Get last 10 recorded meals: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' ORDER BY created_at DESC LIMIT 10`
-- Total calories for a specific day: `SELECT SUM(calories) FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13'`
-- Daily calorie totals for the last 7 days: `SELECT meal_day, SUM(calories) as total_calories FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day >= CURRENT_DATE - INTERVAL '7 days' GROUP BY meal_day ORDER BY meal_day DESC`
-- Average calories by meal type: `SELECT meal, COUNT(*) as count, AVG(calories) as avg_calories FROM fact_meal_macros WHERE user_id = 'user123' GROUP BY meal`
+- Get meals for a specific day: `SELECT * FROM fact_meal_macros WHERE meal_day = '2025-10-13' ORDER BY meal`
+- Get last 10 recorded meals: `SELECT * FROM fact_meal_macros ORDER BY created_at DESC LIMIT 10`
+- Total calories for a specific day: `SELECT SUM(calories) FROM fact_meal_macros WHERE meal_day = '2025-10-13'`
+- Daily calorie totals for the last 7 days: `SELECT meal_day, SUM(calories) as total_calories FROM fact_meal_macros WHERE meal_day >= CURRENT_DATE - INTERVAL '7 days' GROUP BY meal_day ORDER BY meal_day DESC`
+- Average calories by meal type: `SELECT meal, COUNT(*) as count, AVG(calories) as avg_calories FROM fact_meal_macros GROUP BY meal`
+
+**Note:** With OAuth authentication, all queries are automatically scoped to your user account. The server injects the appropriate `user_id` filter to ensure you only see your own data.
 
 ## Database Schema
 

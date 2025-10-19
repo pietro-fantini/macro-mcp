@@ -2,6 +2,7 @@ import { createMCPServer } from 'mcp-use/server';
 import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 import dotenv from 'dotenv';
+import crypto from 'crypto';
 dotenv.config();
 
 const { Pool } = pg;
@@ -101,6 +102,21 @@ Other:
   };
 }
 
+// OAuth state management (in-memory storage for simplicity)
+const oauthClients = new Map(); // clientId -> { clientId, clientSecret, redirectUris }
+const authorizationCodes = new Map(); // code -> { clientId, userId, codeChallenge, redirectUri, expiresAt, accessToken }
+const pendingAuthorizations = new Map(); // state -> { clientId, redirectUri, codeChallenge, codeChallengeMethod }
+
+// Clean up expired codes periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, data] of authorizationCodes.entries()) {
+    if (data.expiresAt < now) {
+      authorizationCodes.delete(code);
+    }
+  }
+}, 60000); // Clean up every minute
+
 // Create the MCP server using mcp-use
 const server = createMCPServer('macro-mcp', {
   version: '1.0.0',
@@ -122,9 +138,254 @@ function scopeQueryToUser(query, userId) {
   }
 }
 
+// ============================================================================
+// OAuth 2.1 Endpoints (MCP OAuth Support)
+// ============================================================================
+
+const PORT = process.env.PORT || 3000;
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
+// OAuth Discovery Endpoint
+// https://spec.modelcontextprotocol.io/specification/draft/basic/authorization/
+server.get('/.well-known/oauth-authorization-server', (req, res) => {
+  res.json({
+    issuer: BASE_URL,
+    authorization_endpoint: `${BASE_URL}/oauth/authorize`,
+    token_endpoint: `${BASE_URL}/oauth/token`,
+    registration_endpoint: `${BASE_URL}/oauth/register`,
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code'],
+    code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none'], // Public client with PKCE
+  });
+});
+
+// Dynamic Client Registration Endpoint
+// https://datatracker.ietf.org/doc/html/rfc7591
+server.post('/oauth/register', (req, res) => {
+  try {
+    const { client_name, redirect_uris } = req.body;
+
+    if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+      return res.status(400).json({ error: 'invalid_request', error_description: 'redirect_uris required' });
+    }
+
+    const clientId = crypto.randomUUID();
+    const registration = {
+      clientId,
+      clientSecret: null, // Public client
+      redirectUris: redirect_uris,
+      clientName: client_name || 'MCP Client',
+      createdAt: Date.now(),
+    };
+
+    oauthClients.set(clientId, registration);
+
+    res.json({
+      client_id: clientId,
+      client_name: registration.clientName,
+      redirect_uris: registration.redirectUris,
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    });
+  } catch (error) {
+    console.error('[OAuth Register Error]', error);
+    res.status(500).json({ error: 'server_error', error_description: 'Registration failed' });
+  }
+});
+
+// Authorization Endpoint - Redirects to Supabase Auth
+server.get('/oauth/authorize', async (req, res) => {
+  try {
+    const {
+      client_id,
+      redirect_uri,
+      response_type,
+      state,
+      code_challenge,
+      code_challenge_method,
+    } = req.query;
+
+    // Validate parameters
+    if (response_type !== 'code') {
+      return res.status(400).send('Only authorization code flow is supported');
+    }
+
+    if (!client_id || !redirect_uri) {
+      return res.status(400).send('Missing required parameters');
+    }
+
+    if (!code_challenge || code_challenge_method !== 'S256') {
+      return res.status(400).send('PKCE with S256 is required');
+    }
+
+    // Verify client and redirect URI
+    const client = oauthClients.get(client_id);
+    if (!client) {
+      return res.status(400).send('Invalid client_id');
+    }
+
+    if (!client.redirectUris.includes(redirect_uri)) {
+      return res.status(400).send('Invalid redirect_uri');
+    }
+
+    // Store authorization request state
+    const authState = crypto.randomUUID();
+    pendingAuthorizations.set(authState, {
+      clientId: client_id,
+      redirectUri: redirect_uri,
+      codeChallenge: code_challenge,
+      codeChallengeMethod: code_challenge_method,
+      mcpState: state, // Store MCP client's state to return later
+      createdAt: Date.now(),
+    });
+
+    // Redirect to Supabase Auth with our callback
+    const supabaseAuthUrl = `${SUPABASE_URL}/auth/v1/authorize`;
+    const callbackUrl = `${BASE_URL}/oauth/callback`;
+    
+    const params = new URLSearchParams({
+      provider: 'google', // You can make this configurable
+      redirect_to: callbackUrl,
+      state: authState,
+    });
+
+    res.redirect(`${supabaseAuthUrl}?${params.toString()}`);
+  } catch (error) {
+    console.error('[OAuth Authorize Error]', error);
+    res.status(500).send('Authorization failed');
+  }
+});
+
+// OAuth Callback - Receives Supabase auth result
+server.get('/oauth/callback', async (req, res) => {
+  try {
+    const { code: supabaseCode, state: authState, error: authError } = req.query;
+
+    if (authError) {
+      return res.status(400).send(`Authentication failed: ${authError}`);
+    }
+
+    if (!supabaseCode || !authState) {
+      return res.status(400).send('Missing callback parameters');
+    }
+
+    // Retrieve the pending authorization
+    const pending = pendingAuthorizations.get(authState);
+    if (!pending) {
+      return res.status(400).send('Invalid or expired authorization request');
+    }
+
+    pendingAuthorizations.delete(authState);
+
+    // Exchange Supabase code for session
+    const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(supabaseCode);
+    
+    if (sessionError || !sessionData?.session) {
+      console.error('[OAuth Callback Error]', sessionError);
+      return res.status(500).send('Failed to exchange code for session');
+    }
+
+    const { access_token, user } = sessionData.session;
+
+    // Generate authorization code for MCP client
+    const authorizationCode = crypto.randomUUID();
+    authorizationCodes.set(authorizationCode, {
+      clientId: pending.clientId,
+      userId: user.id,
+      codeChallenge: pending.codeChallenge,
+      redirectUri: pending.redirectUri,
+      accessToken: access_token, // Store Supabase access token
+      expiresAt: Date.now() + 60000, // 1 minute expiry
+    });
+
+    // Redirect back to MCP client with authorization code
+    const redirectUrl = new URL(pending.redirectUri);
+    redirectUrl.searchParams.set('code', authorizationCode);
+    if (pending.mcpState) {
+      redirectUrl.searchParams.set('state', pending.mcpState);
+    }
+
+    res.redirect(redirectUrl.toString());
+  } catch (error) {
+    console.error('[OAuth Callback Error]', error);
+    res.status(500).send('Callback processing failed');
+  }
+});
+
+// Token Endpoint - Exchanges authorization code for access token
+server.post('/oauth/token', async (req, res) => {
+  try {
+    const {
+      grant_type,
+      code,
+      redirect_uri,
+      client_id,
+      code_verifier,
+    } = req.body;
+
+    if (grant_type !== 'authorization_code') {
+      return res.status(400).json({ error: 'unsupported_grant_type' });
+    }
+
+    if (!code || !redirect_uri || !client_id || !code_verifier) {
+      return res.status(400).json({ error: 'invalid_request', error_description: 'Missing required parameters' });
+    }
+
+    // Retrieve authorization code
+    const authCode = authorizationCodes.get(code);
+    if (!authCode) {
+      return res.status(400).json({ error: 'invalid_grant', error_description: 'Invalid or expired code' });
+    }
+
+    // Verify code hasn't expired
+    if (authCode.expiresAt < Date.now()) {
+      authorizationCodes.delete(code);
+      return res.status(400).json({ error: 'invalid_grant', error_description: 'Code expired' });
+    }
+
+    // Verify client and redirect URI
+    if (authCode.clientId !== client_id || authCode.redirectUri !== redirect_uri) {
+      return res.status(400).json({ error: 'invalid_grant', error_description: 'Client or redirect URI mismatch' });
+    }
+
+    // Verify PKCE challenge
+    const hash = crypto.createHash('sha256').update(code_verifier).digest('base64url');
+    if (hash !== authCode.codeChallenge) {
+      return res.status(400).json({ error: 'invalid_grant', error_description: 'PKCE verification failed' });
+    }
+
+    // Code is valid, delete it (single use)
+    authorizationCodes.delete(code);
+
+    // Return the Supabase access token
+    res.json({
+      access_token: authCode.accessToken,
+      token_type: 'Bearer',
+      expires_in: 3600, // Supabase default
+    });
+  } catch (error) {
+    console.error('[OAuth Token Error]', error);
+    res.status(500).json({ error: 'server_error', error_description: 'Token exchange failed' });
+  }
+});
+
+// ============================================================================
+// End OAuth Endpoints
+// ============================================================================
+
 // Supabase OAuth middleware: verifies Bearer token and injects user_id into tool calls
 server.use(async (req, res, next) => {
   try {
+    // Allow OAuth endpoints and discovery to pass through without auth
+    if (req.path && (
+      req.path.startsWith('/oauth') || 
+      req.path.startsWith('/.well-known')
+    )) {
+      return next();
+    }
+
     // Only enforce auth for MCP endpoints
     if (!req.path || !req.path.startsWith('/mcp')) return next();
 
@@ -425,8 +686,6 @@ ${JSON.stringify(result.rows, null, 2)}`;
   }
 });
 
-const PORT = process.env.PORT || 3000;
-
 // Start the server
 server.listen(PORT);
 
@@ -434,8 +693,12 @@ console.log(`\n${'='.repeat(60)}`);
 console.log(`🚀 MCP server running on port ${PORT}`);
 console.log(`${'='.repeat(60)}`);
 console.log(`\n📡 Endpoints:`);
-console.log(`  - MCP endpoint: http://localhost:${PORT}/mcp`);
-console.log(`  - Inspector: http://localhost:${PORT}/inspector`);
+console.log(`  - MCP endpoint: ${BASE_URL}/mcp`);
+console.log(`  - Inspector: ${BASE_URL}/inspector`);
+console.log(`  - OAuth Discovery: ${BASE_URL}/.well-known/oauth-authorization-server`);
+console.log(`  - OAuth Authorize: ${BASE_URL}/oauth/authorize`);
+console.log(`  - OAuth Token: ${BASE_URL}/oauth/token`);
+console.log(`  - OAuth Register: ${BASE_URL}/oauth/register`);
 console.log(`\n🔑 Environment:`);
 console.log(`  - NUTRITIONIX_API_ID: ${API_ID ? '✓ Set' : '✗ Missing'}`);
 console.log(`  - NUTRITIONIX_API_KEY: ${API_KEY ? '✓ Set' : '✗ Missing'}`);
@@ -451,4 +714,14 @@ console.log(`  - Supabase Client: ${supabase ? '✓ Connected' : '✗ Not config
 console.log(`  - PostgreSQL Pool: ${pgPool ? '✓ Connected' : '✗ Not configured'} (for queries)`);
 console.log(`  - Table: fact_meal_macros`);
 console.log(`  - Features: Save meals, query history, track macros`);
+console.log(`\n🔐 OAuth 2.1 Authentication:`);
+console.log(`  - Status: ✓ Enabled`);
+console.log(`  - Flow: Authorization Code with PKCE`);
+console.log(`  - Provider: Supabase Auth (Google, GitHub, etc.)`);
+console.log(`  - Client Registration: Dynamic (no pre-configuration needed)`);
+console.log(`\n💡 Setup Instructions:`);
+console.log(`  1. Configure OAuth provider in Supabase Dashboard`);
+console.log(`  2. Add callback URL: ${BASE_URL}/oauth/callback`);
+console.log(`  3. In Claude, add MCP server URL: ${BASE_URL}`);
+console.log(`  4. Leave OAuth Client ID/Secret empty (uses dynamic registration)`);
 console.log(`\n${'='.repeat(60)}\n`);
