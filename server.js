@@ -311,15 +311,70 @@ server.get('/oauth/callback', async (req, res) => {
 
     pendingAuthorizations.delete(internalState);
 
-    // Exchange Supabase code for session
+    // Exchange Supabase code for session (without code_verifier since we're not using PKCE with Supabase)
     console.log('[OAuth Callback] Exchanging Supabase code for session...');
+    
+    // Use Supabase client to exchange the code
+    // We need to set the session from the code directly
     const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(supabaseCode);
     
     if (sessionError || !sessionData?.session) {
-      console.error('[OAuth Callback] Failed to exchange code for session');
+      console.error('[OAuth Callback] Failed with exchangeCodeForSession, trying alternative method...');
       console.error('[OAuth Callback] Error details:', JSON.stringify(sessionError, null, 2));
-      console.error('[OAuth Callback] Session data:', sessionData);
-      return res.status(500).send(`Failed to exchange code for session: ${sessionError?.message || 'Unknown error'}`);
+      
+      // Alternative: Use Supabase Management API to exchange code
+      // This is a workaround when PKCE is required but we don't have code_verifier
+      try {
+        const tokenResponse = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+          },
+          body: JSON.stringify({
+            auth_code: supabaseCode,
+          }),
+        });
+
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text();
+          console.error('[OAuth Callback] Token exchange failed:', errorText);
+          return res.status(500).send(`Failed to exchange code: ${errorText}`);
+        }
+
+        const tokenData = await tokenResponse.json();
+        console.log('[OAuth Callback] Successfully exchanged code via API');
+        console.log('[OAuth Callback] User ID:', tokenData.user?.id);
+
+        const access_token = tokenData.access_token;
+        const user = tokenData.user;
+
+        if (!access_token || !user) {
+          return res.status(500).send('Invalid token response from Supabase');
+        }
+
+        // Continue with authorization code generation
+        const authorizationCode = crypto.randomUUID();
+        authorizationCodes.set(authorizationCode, {
+          clientId: pending.clientId,
+          userId: user.id,
+          codeChallenge: pending.codeChallenge,
+          redirectUri: pending.redirectUri,
+          accessToken: access_token,
+          expiresAt: Date.now() + 60000,
+        });
+
+        const redirectUrl = new URL(pending.redirectUri);
+        redirectUrl.searchParams.set('code', authorizationCode);
+        if (pending.mcpState) {
+          redirectUrl.searchParams.set('state', pending.mcpState);
+        }
+
+        return res.redirect(redirectUrl.toString());
+      } catch (altError) {
+        console.error('[OAuth Callback] Alternative method also failed:', altError);
+        return res.status(500).send('All token exchange methods failed');
+      }
     }
 
     console.log('[OAuth Callback] Successfully exchanged code for session');
