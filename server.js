@@ -253,20 +253,27 @@ server.get('/oauth/authorize', async (req, res) => {
       createdAt: Date.now(),
     });
 
-    // Redirect to Supabase Auth with our callback
-    // Note: We pass our internal state in the redirect_to URL, not as a state param
-    // Supabase manages its own state parameter for CSRF protection
+    // Use Supabase's OAuth PKCE flow
+    // We need to generate code_challenge for Supabase's PKCE flow
+    // and pass it through to get an authorization code (not implicit flow token)
     const supabaseAuthUrl = `${SUPABASE_URL}/auth/v1/authorize`;
     const callbackUrl = `${BASE_URL}/oauth/callback?state=${internalState}`;
     
+    // Request authorization code flow (not implicit flow)
     const params = new URLSearchParams({
       provider: OAUTH_PROVIDER,
       redirect_to: callbackUrl,
+      // Force Supabase to use code flow instead of implicit flow
+      response_type: 'code',
+      // Pass our code_challenge to Supabase for their PKCE validation
+      code_challenge: code_challenge,
+      code_challenge_method: code_challenge_method,
     });
 
     const finalUrl = `${supabaseAuthUrl}?${params.toString()}`;
     console.log('[OAuth Authorize] Redirecting to Supabase:', finalUrl);
     console.log('[OAuth Authorize] Callback URL:', callbackUrl);
+    console.log('[OAuth Authorize] Using authorization code flow with PKCE');
 
     res.redirect(finalUrl);
   } catch (error) {
@@ -279,6 +286,7 @@ server.get('/oauth/authorize', async (req, res) => {
 server.get('/oauth/callback', async (req, res) => {
   try {
     console.log('[OAuth Callback] Received callback with query params:', req.query);
+    console.log('[OAuth Callback] URL:', req.url);
     const { code: supabaseCode, state: internalState, error: authError, error_description } = req.query;
 
     if (authError) {
@@ -287,7 +295,13 @@ server.get('/oauth/callback', async (req, res) => {
     }
 
     if (!supabaseCode) {
-      return res.status(400).send('Missing authorization code from Supabase');
+      console.error('[OAuth Callback] No code received. Full URL:', req.url);
+      console.error('[OAuth Callback] Query params:', req.query);
+      return res.status(400).send(`
+        Missing authorization code from Supabase. 
+        Check server logs for details.
+        This might mean Supabase is using implicit flow instead of code flow.
+      `);
     }
 
     if (!internalState) {
