@@ -1,6 +1,8 @@
 import { createMCPServer } from 'mcp-use/server';
 import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const { Pool } = pg;
 
