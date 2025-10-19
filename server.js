@@ -253,27 +253,22 @@ server.get('/oauth/authorize', async (req, res) => {
       createdAt: Date.now(),
     });
 
-    // Use Supabase's OAuth PKCE flow
-    // We need to generate code_challenge for Supabase's PKCE flow
-    // and pass it through to get an authorization code (not implicit flow token)
+    // Redirect to Supabase for OAuth
+    // Note: We handle PKCE between Claude and our server, but NOT with Supabase
+    // Supabase will return a code that we can exchange directly
     const supabaseAuthUrl = `${SUPABASE_URL}/auth/v1/authorize`;
     const callbackUrl = `${BASE_URL}/oauth/callback?state=${internalState}`;
     
-    // Request authorization code flow (not implicit flow)
+    // Request authorization code flow from Supabase (simple code exchange, no PKCE with Supabase)
     const params = new URLSearchParams({
       provider: OAUTH_PROVIDER,
       redirect_to: callbackUrl,
-      // Force Supabase to use code flow instead of implicit flow
-      response_type: 'code',
-      // Pass our code_challenge to Supabase for their PKCE validation
-      code_challenge: code_challenge,
-      code_challenge_method: code_challenge_method,
     });
 
     const finalUrl = `${supabaseAuthUrl}?${params.toString()}`;
     console.log('[OAuth Authorize] Redirecting to Supabase:', finalUrl);
     console.log('[OAuth Authorize] Callback URL:', callbackUrl);
-    console.log('[OAuth Authorize] Using authorization code flow with PKCE');
+    console.log('[OAuth Authorize] Will handle PKCE with Claude, simple code exchange with Supabase');
 
     res.redirect(finalUrl);
   } catch (error) {
@@ -317,12 +312,18 @@ server.get('/oauth/callback', async (req, res) => {
     pendingAuthorizations.delete(internalState);
 
     // Exchange Supabase code for session
+    console.log('[OAuth Callback] Exchanging Supabase code for session...');
     const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(supabaseCode);
     
     if (sessionError || !sessionData?.session) {
-      console.error('[OAuth Callback Error]', sessionError);
-      return res.status(500).send('Failed to exchange code for session');
+      console.error('[OAuth Callback] Failed to exchange code for session');
+      console.error('[OAuth Callback] Error details:', JSON.stringify(sessionError, null, 2));
+      console.error('[OAuth Callback] Session data:', sessionData);
+      return res.status(500).send(`Failed to exchange code for session: ${sessionError?.message || 'Unknown error'}`);
     }
+
+    console.log('[OAuth Callback] Successfully exchanged code for session');
+    console.log('[OAuth Callback] User ID:', sessionData.session.user.id);
 
     const { access_token, user } = sessionData.session;
 
