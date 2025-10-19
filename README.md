@@ -70,6 +70,11 @@ NUTRITIONIX_API_KEY=your_api_key_here
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_anon_key_here
 SUPABASE_DB_URL=postgresql://postgres:[YOUR-PASSWORD]@db.your-project.supabase.co:5432/postgres
+
+# Server configuration
+PORT=3000
+BASE_URL=http://localhost:3000
+OAUTH_PROVIDER=google
 ```
 
 **Getting Supabase credentials:**
@@ -191,9 +196,14 @@ This MCP server supports OAuth 2.1 authentication with PKCE, allowing users to a
    https://your-project.supabase.co/auth/v1/callback
    ```
 
-#### 2. Add OAuth Callback URL
+#### 2. Add OAuth Callback URL ⚠️ CRITICAL
+
+**This step is REQUIRED or OAuth will fail with "bad_oauth_state" error!**
 
 In your Supabase Dashboard → Authentication → URL Configuration:
+
+1. Scroll to **Redirect URLs** section
+2. Add your callback URL to the list:
 
 For **local development**:
 ```
@@ -205,6 +215,10 @@ For **production** (mcp-use):
 https://your-deployed-url.com/oauth/callback
 ```
 
+3. Click **Save**
+
+**Note**: The URL must match EXACTLY including the protocol (http/https) and path.
+
 #### 3. Set Environment Variables
 
 Add to your `.env` file:
@@ -212,7 +226,20 @@ Add to your `.env` file:
 PORT=3000
 BASE_URL=http://localhost:3000  # For local dev
 # BASE_URL=https://your-deployed-url.com  # For production
+
+OAUTH_PROVIDER=google  # Options: google, github, azure, gitlab, bitbucket, etc.
 ```
+
+**Supported OAuth Providers:**
+- `google` (default) - Google Sign-In
+- `github` - GitHub OAuth
+- `azure` - Microsoft Azure AD
+- `gitlab` - GitLab OAuth
+- `bitbucket` - Bitbucket OAuth
+- `discord` - Discord OAuth
+- `facebook` - Facebook Login
+- `twitter` - Twitter OAuth
+- Any provider supported by Supabase Auth
 
 #### 4. Connect in Claude
 
@@ -259,11 +286,20 @@ Once authenticated:
 
 ### Troubleshooting OAuth
 
+**Issue**: `"Unsupported provider: provider is not enabled"` (Error code 400)
+- **Solution**: You need to enable the OAuth provider in Supabase Dashboard
+  1. Go to Authentication → Providers
+  2. Find the provider matching your `OAUTH_PROVIDER` env var (e.g., "Google")
+  3. Click Enable and configure OAuth credentials
+  4. Make sure to add the correct callback URL
+
 **Issue**: "Invalid redirect_uri"
 - **Solution**: Ensure the callback URL is configured in Supabase Dashboard → Authentication → URL Configuration
+  - Local: `http://localhost:3000/oauth/callback`
+  - Production: `https://your-deployed-url.com/oauth/callback`
 
 **Issue**: "Authentication failed: invalid_grant"
-- **Solution**: Check that your Supabase OAuth provider is properly configured with valid credentials
+- **Solution**: Check that your Supabase OAuth provider is properly configured with valid OAuth credentials from the provider (Google, GitHub, etc.)
 
 **Issue**: OAuth flow starts but redirects to error page
 - **Solution**: Verify that `BASE_URL` environment variable matches your deployed URL exactly

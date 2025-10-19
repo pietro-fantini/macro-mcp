@@ -144,6 +144,7 @@ function scopeQueryToUser(query, userId) {
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const OAUTH_PROVIDER = process.env.OAUTH_PROVIDER || 'google'; // google, github, azure, etc.
 
 // OAuth Discovery Endpoint
 // https://spec.modelcontextprotocol.io/specification/draft/basic/authorization/
@@ -230,9 +231,9 @@ server.get('/oauth/authorize', async (req, res) => {
       return res.status(400).send('Invalid redirect_uri');
     }
 
-    // Store authorization request state
-    const authState = crypto.randomUUID();
-    pendingAuthorizations.set(authState, {
+    // Store authorization request state (keyed by MCP state for retrieval after callback)
+    const internalState = crypto.randomUUID();
+    pendingAuthorizations.set(internalState, {
       clientId: client_id,
       redirectUri: redirect_uri,
       codeChallenge: code_challenge,
@@ -242,16 +243,21 @@ server.get('/oauth/authorize', async (req, res) => {
     });
 
     // Redirect to Supabase Auth with our callback
+    // Note: We pass our internal state in the redirect_to URL, not as a state param
+    // Supabase manages its own state parameter for CSRF protection
     const supabaseAuthUrl = `${SUPABASE_URL}/auth/v1/authorize`;
-    const callbackUrl = `${BASE_URL}/oauth/callback`;
+    const callbackUrl = `${BASE_URL}/oauth/callback?state=${internalState}`;
     
     const params = new URLSearchParams({
-      provider: 'google', // You can make this configurable
+      provider: OAUTH_PROVIDER,
       redirect_to: callbackUrl,
-      state: authState,
     });
 
-    res.redirect(`${supabaseAuthUrl}?${params.toString()}`);
+    const finalUrl = `${supabaseAuthUrl}?${params.toString()}`;
+    console.log('[OAuth Authorize] Redirecting to Supabase:', finalUrl);
+    console.log('[OAuth Authorize] Callback URL:', callbackUrl);
+
+    res.redirect(finalUrl);
   } catch (error) {
     console.error('[OAuth Authorize Error]', error);
     res.status(500).send('Authorization failed');
@@ -261,23 +267,29 @@ server.get('/oauth/authorize', async (req, res) => {
 // OAuth Callback - Receives Supabase auth result
 server.get('/oauth/callback', async (req, res) => {
   try {
-    const { code: supabaseCode, state: authState, error: authError } = req.query;
+    console.log('[OAuth Callback] Received callback with query params:', req.query);
+    const { code: supabaseCode, state: internalState, error: authError, error_description } = req.query;
 
     if (authError) {
-      return res.status(400).send(`Authentication failed: ${authError}`);
+      console.error('[OAuth Callback Error]', authError, error_description);
+      return res.status(400).send(`Authentication failed: ${authError} - ${error_description || ''}`);
     }
 
-    if (!supabaseCode || !authState) {
-      return res.status(400).send('Missing callback parameters');
+    if (!supabaseCode) {
+      return res.status(400).send('Missing authorization code from Supabase');
     }
 
-    // Retrieve the pending authorization
-    const pending = pendingAuthorizations.get(authState);
+    if (!internalState) {
+      return res.status(400).send('Missing state parameter');
+    }
+
+    // Retrieve the pending authorization using our internal state
+    const pending = pendingAuthorizations.get(internalState);
     if (!pending) {
       return res.status(400).send('Invalid or expired authorization request');
     }
 
-    pendingAuthorizations.delete(authState);
+    pendingAuthorizations.delete(internalState);
 
     // Exchange Supabase code for session
     const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(supabaseCode);
@@ -705,6 +717,7 @@ console.log(`  - NUTRITIONIX_API_KEY: ${API_KEY ? '✓ Set' : '✗ Missing'}`);
 console.log(`  - SUPABASE_URL: ${SUPABASE_URL ? '✓ Set' : '✗ Missing'}`);
 console.log(`  - SUPABASE_ANON_KEY: ${SUPABASE_KEY ? '✓ Set' : '✗ Missing'}`);
 console.log(`  - SUPABASE_DB_URL: ${SUPABASE_DB_URL ? '✓ Set' : '✗ Missing'}`);
+console.log(`  - OAUTH_PROVIDER: ${OAUTH_PROVIDER}`);
 console.log(`\n🛠️  Available tools:`);
 console.log(`  1. get_nutrition: Get nutritional info for food items (per 100g)`);
 console.log(`  2. save_meal_macros: Save meal data to Supabase fact_meal_macros table`);
@@ -717,11 +730,13 @@ console.log(`  - Features: Save meals, query history, track macros`);
 console.log(`\n🔐 OAuth 2.1 Authentication:`);
 console.log(`  - Status: ✓ Enabled`);
 console.log(`  - Flow: Authorization Code with PKCE`);
-console.log(`  - Provider: Supabase Auth (Google, GitHub, etc.)`);
+console.log(`  - Provider: Supabase Auth → ${OAUTH_PROVIDER.toUpperCase()}`);
 console.log(`  - Client Registration: Dynamic (no pre-configuration needed)`);
 console.log(`\n💡 Setup Instructions:`);
-console.log(`  1. Configure OAuth provider in Supabase Dashboard`);
-console.log(`  2. Add callback URL: ${BASE_URL}/oauth/callback`);
-console.log(`  3. In Claude, add MCP server URL: ${BASE_URL}`);
-console.log(`  4. Leave OAuth Client ID/Secret empty (uses dynamic registration)`);
+console.log(`  1. Enable '${OAUTH_PROVIDER}' provider in Supabase Dashboard (Authentication → Providers)`);
+console.log(`  2. Configure OAuth credentials for ${OAUTH_PROVIDER} provider`);
+console.log(`  3. IMPORTANT: Add redirect URL in Supabase (Authentication → URL Configuration):`);
+console.log(`     Redirect URLs: ${BASE_URL}/oauth/callback`);
+console.log(`  4. In Claude, add MCP server URL: ${BASE_URL}`);
+console.log(`  5. Leave OAuth Client ID/Secret empty (uses dynamic registration)`);
 console.log(`\n${'='.repeat(60)}\n`);
