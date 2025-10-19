@@ -107,6 +107,97 @@ const server = createMCPServer('macro-mcp', {
   description: 'MCP server for nutritional information and meal tracking using Nutritionix API and Supabase',
 });
 
+// Simple helper to scope SELECT queries to the authenticated user
+function scopeQueryToUser(query, userId) {
+  try {
+    if (!query || typeof query !== 'string') return query;
+    const trimmed = query.trim();
+    // Only attempt to scope simple SELECTs that reference our table
+    if (!/^select\b/i.test(trimmed)) return query;
+    if (!/fact_meal_macros/i.test(trimmed)) return query;
+    if (/\buser_id\b/i.test(trimmed)) return query; // already scoped
+    return `SELECT * FROM (${trimmed}) AS __q WHERE __q.user_id = '${userId}'`;
+  } catch {
+    return query;
+  }
+}
+
+// Supabase OAuth middleware: verifies Bearer token and injects user_id into tool calls
+server.use(async (req, res, next) => {
+  try {
+    // Only enforce auth for MCP endpoints
+    if (!req.path || !req.path.startsWith('/mcp')) return next();
+
+    // Allow preflight
+    if (req.method === 'OPTIONS') return next();
+
+    if (!supabase) {
+      return res.status(500).json({ error: 'Supabase not configured on server' });
+    }
+
+    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    if (!authHeader || typeof authHeader !== 'string' || !authHeader.toLowerCase().startsWith('bearer ')) {
+      return res.status(401).json({ error: 'Missing Authorization: Bearer <token>' });
+    }
+
+    const accessToken = authHeader.slice(7).trim();
+    if (!accessToken) {
+      return res.status(401).json({ error: 'Invalid Authorization header' });
+    }
+
+    // Verify token with Supabase Auth and extract the user
+    const { data, error } = await supabase.auth.getUser(accessToken);
+    if (error || !data || !data.user) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const userId = data.user.id;
+    // Attach auth info for downstream handlers (also visible to MCP transport)
+    req.auth = { token: accessToken, user: data.user, userId };
+
+    // For POST /mcp, mutate JSON-RPC call arguments to inject user_id and scope queries
+    if (req.method === 'POST' && req.is('application/json') && req.body) {
+      const injectAuthIntoMessage = (message) => {
+        try {
+          if (!message || typeof message !== 'object') return;
+          if (message.method !== 'tools/call') return;
+          const params = message.params || {};
+          const toolName = params.name;
+          if (!toolName) return;
+          params.arguments = params.arguments || {};
+
+          if (toolName === 'save_meal_macros') {
+            if (!params.arguments.user_id) {
+              params.arguments.user_id = userId;
+            }
+          }
+
+          if (toolName === 'query_meal_data') {
+            const q = params.arguments.query;
+            if (typeof q === 'string') {
+              params.arguments.query = scopeQueryToUser(q, userId);
+            }
+          }
+
+          message.params = params;
+        } catch {
+          // no-op on injection errors; MCP handler will proceed
+        }
+      };
+
+      if (Array.isArray(req.body)) {
+        req.body.forEach(injectAuthIntoMessage);
+      } else {
+        injectAuthIntoMessage(req.body);
+      }
+    }
+
+    return next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Authentication failure' });
+  }
+});
+
 // Tool 1: get_nutrition
 server.tool({
   name: 'get_nutrition',
@@ -169,12 +260,6 @@ server.tool({
   description: 'Save meal macros to Supabase fact_meal_macros table. Records a meal with its nutritional information and items.',
   inputs: [
     {
-      name: 'user_id',
-      type: 'string',
-      description: 'The ID of the user recording this meal',
-      required: true
-    },
-    {
       name: 'meal',
       type: 'string',
       description: 'The type of meal being recorded: breakfast, morning_snack, lunch, afternoon_snack, dinner, or extra',
@@ -211,6 +296,10 @@ server.tool({
     try {
       if (!supabase) {
         throw new Error("Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
+      }
+
+      if (!user_id) {
+        throw new Error('Not authenticated: missing user context');
       }
 
       // Validate meal type
