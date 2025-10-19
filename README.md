@@ -198,26 +198,31 @@ This MCP server supports OAuth 2.1 authentication with PKCE, allowing users to a
 
 #### 2. Add OAuth Callback URL ⚠️ CRITICAL
 
-**This step is REQUIRED or OAuth will fail with "bad_oauth_state" error!**
+**This step is REQUIRED or OAuth will fail!**
 
 In your Supabase Dashboard → Authentication → URL Configuration:
 
 1. Scroll to **Redirect URLs** section
-2. Add your callback URL to the list:
+2. **Add ALL callback URLs you will use:**
 
-For **local development**:
+For **local development AND production**, add BOTH:
 ```
 http://localhost:3000/oauth/callback
+https://your-deployed-url.com/oauth/callback
 ```
 
-For **production** (mcp-use):
+**Example for mcp-use deployment:**
 ```
-https://your-deployed-url.com/oauth/callback
+http://localhost:3000/oauth/callback
+https://your-app.mcp-use.com/oauth/callback
 ```
 
 3. Click **Save**
 
-**Note**: The URL must match EXACTLY including the protocol (http/https) and path.
+**Important Notes:**
+- ⚠️ You MUST add BOTH URLs (localhost for testing, production for deployment)
+- ⚠️ URLs must match EXACTLY including protocol (http/https) and path
+- ⚠️ If you're getting redirected to `localhost:3000` in production, you forgot to add your production URL here!
 
 #### 3. Set Environment Variables
 
@@ -285,6 +290,16 @@ Once authenticated:
 - ✅ **Secure**: No tokens exposed to the user
 
 ### Troubleshooting OAuth
+
+**Issue**: Redirected to `localhost:3000` even in production
+- **Cause**: Your production callback URL is not whitelisted in Supabase
+- **Solution**: 
+  1. Go to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
+  2. Add your production URL: `https://your-deployed-url.com/oauth/callback`
+  3. Make sure BOTH localhost AND production URLs are in the list
+  4. Click Save
+  5. Redeploy your app to pick up any env var changes
+  6. Check server logs for `[CONFIG] BASE_URL:` to verify it's correct
 
 **Issue**: `"Unsupported provider: provider is not enabled"` (Error code 400)
 - **Solution**: You need to enable the OAuth provider in Supabase Dashboard

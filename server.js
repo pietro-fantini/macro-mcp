@@ -146,6 +146,17 @@ const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const OAUTH_PROVIDER = process.env.OAUTH_PROVIDER || 'google'; // google, github, azure, etc.
 
+// Log BASE_URL to verify it's set correctly in deployed environment
+console.error(`[CONFIG] BASE_URL: ${BASE_URL}`);
+console.error(`[CONFIG] PORT: ${PORT}`);
+console.error(`[CONFIG] OAUTH_PROVIDER: ${OAUTH_PROVIDER}`);
+
+// Warn if BASE_URL looks like localhost but we're in production
+if (BASE_URL.includes('localhost') && process.env.NODE_ENV === 'production') {
+  console.error(`[WARNING] BASE_URL is set to localhost but NODE_ENV is production!`);
+  console.error(`[WARNING] OAuth callbacks will fail. Set BASE_URL to your production URL.`);
+}
+
 // OAuth Discovery Endpoint
 // https://spec.modelcontextprotocol.io/specification/draft/basic/authorization/
 server.get('/.well-known/oauth-authorization-server', (req, res) => {
