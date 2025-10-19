@@ -100,8 +100,7 @@ Other:
 }
 
 // Create the MCP server using mcp-use
-const server = createMCPServer({
-  name: 'macro-mcp',
+const server = createMCPServer('macro-mcp', {
   version: '1.0.0',
   description: 'MCP server for nutritional information and meal tracking using Nutritionix API and Supabase',
 });
@@ -111,11 +110,11 @@ server.tool({
   name: 'get_nutrition',
   description: 'Get nutritional information (calories and macronutrients) for a food item per 100 grams. Returns calories, protein, total fat, and carbohydrates.',
   inputs: [
-    { 
-      name: 'food', 
-      type: 'string', 
+    {
+      name: 'food',
+      type: 'string',
       description: 'The name of the food item (e.g., "lamb", "chicken breast", "apple")',
-      required: true 
+      required: true
     }
   ],
   cb: async ({ food }) => {
@@ -167,41 +166,41 @@ server.tool({
   name: 'save_meal_macros',
   description: 'Save meal macros to Supabase fact_meal_macros table. Records a meal with its nutritional information and items.',
   inputs: [
-    { 
-      name: 'user_id', 
-      type: 'string', 
+    {
+      name: 'user_id',
+      type: 'string',
       description: 'The ID of the user recording this meal',
-      required: true 
+      required: true
     },
-    { 
-      name: 'meal', 
-      type: 'string', 
+    {
+      name: 'meal',
+      type: 'string',
       description: 'The type of meal being recorded: breakfast, morning_snack, lunch, afternoon_snack, dinner, or extra',
-      required: true 
+      required: true
     },
-    { 
-      name: 'meal_day', 
-      type: 'string', 
+    {
+      name: 'meal_day',
+      type: 'string',
       description: 'The date when the meal was consumed in YYYY-MM-DD format (e.g., "2025-10-13")',
-      required: true 
+      required: true
     },
-    { 
-      name: 'calories', 
-      type: 'number', 
+    {
+      name: 'calories',
+      type: 'number',
       description: 'Total calories of the meal (integer)',
-      required: true 
+      required: true
     },
-    { 
-      name: 'macros', 
-      type: 'object', 
+    {
+      name: 'macros',
+      type: 'object',
       description: 'Macronutrients as key-value pairs (e.g., {"protein": 25.5, "carbs": 30.2, "fat": 10.5})',
-      required: true 
+      required: true
     },
-    { 
-      name: 'meal_items', 
-      type: 'object', 
+    {
+      name: 'meal_items',
+      type: 'object',
       description: 'Meal items with quantities (e.g., {"chicken breast": 150, "rice": 100})',
-      required: true 
+      required: true
     }
   ],
   cb: async ({ user_id, meal, meal_day, calories, macros, meal_items }) => {
@@ -282,11 +281,11 @@ server.tool({
   name: 'query_meal_data',
   description: 'Query meal data from Supabase. Execute SQL queries to retrieve meal history, aggregations, or specific records from fact_meal_macros table.',
   inputs: [
-    { 
-      name: 'query', 
-      type: 'string', 
+    {
+      name: 'query',
+      type: 'string',
       description: 'SQL query to execute (e.g., "SELECT * FROM fact_meal_macros WHERE user_id = \'123\' ORDER BY created_at DESC")',
-      required: true 
+      required: true
     }
   ],
   cb: async ({ query }) => {
