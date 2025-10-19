@@ -1,6 +1,6 @@
 # Macro MCP Server
 
-An MCP (Model Context Protocol) server that provides nutritional information for food items using the Nutritionix API. Get calories and macronutrients per 100 grams for any food.
+An MCP (Model Context Protocol) server built with [mcp-use](https://mcp-use.com) that provides nutritional information for food items using the Nutritionix API. Get calories and macronutrients per 100 grams for any food, and track your meals with Supabase integration.
 
 ## Features
 
@@ -60,47 +60,65 @@ SUPABASE_DB_URL=postgresql://postgres:[YOUR-PASSWORD]@db.your-project.supabase.c
 
 ## Deployment
 
-### Deploy to Vercel (Recommended)
+### Deploy to mcp-use (Recommended)
 
-1. Fork or clone this repository
+This server is built with [mcp-use](https://mcp-use.com), which provides a managed hosting platform for MCP servers with features like authentication, monitoring, and automatic scaling.
 
-2. Install the Vercel CLI:
-```bash
-npm install -g vercel
-```
+1. Sign up at [mcp-use.com](https://mcp-use.com)
 
-3. Deploy to Vercel:
-```bash
-vercel
-```
-
-4. Set environment variables in your Vercel project:
-   - Go to your project settings on Vercel dashboard
-   - Navigate to "Environment Variables"
-   - Add:
+2. Deploy your server:
+   - Follow the mcp-use deployment guide
+   - Set environment variables:
      - `NUTRITIONIX_API_KEY`: Your Nutritionix API key
      - `NUTRITIONIX_API_ID`: Your Nutritionix API ID
+     - `SUPABASE_URL`: Your Supabase project URL
+     - `SUPABASE_ANON_KEY`: Your Supabase anon key
+     - `SUPABASE_DB_URL`: Your Supabase database connection string
 
-5. Your MCP server will be available at: `https://your-project.vercel.app`
+3. Your MCP server will be available through the mcp-use platform
+
+### Local Development
+
+Start the server locally:
+
+```bash
+npm start
+```
+
+The server will start on `http://localhost:3000` with:
+- MCP endpoint: `http://localhost:3000/mcp`
+- Inspector: `http://localhost:3000/inspector`
 
 ### Configuration for Claude Desktop
 
-After deploying to Vercel, add the server to your Claude Desktop configuration file:
+Add the server to your Claude Desktop configuration file:
 
 **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
 
+For local development:
 ```json
 {
   "mcpServers": {
     "macro-mcp": {
-      "url": "https://your-project.vercel.app/api/mcp"
+      "url": "http://localhost:3000/mcp"
     }
   }
 }
 ```
 
-Replace `your-project.vercel.app` with your actual Vercel deployment URL.
+For mcp-use hosted deployment:
+```json
+{
+  "mcpServers": {
+    "macro-mcp": {
+      "url": "https://your-server.mcp-use.com/mcp"
+    }
+  }
+}
+```
+
+Replace with your actual server URL.
 
 ## Usage
 
@@ -320,11 +338,18 @@ CREATE INDEX IF NOT EXISTS idx_meal_macros_user_meal_day ON fact_meal_macros(use
 
 ```
 macro-mcp/
-├── server.js                 # Main MCP server with HTTP/SSE support
-├── package.json
+├── server.js                 # MCP server built with mcp-use
+├── package.json              # Dependencies including mcp-use
 ├── package-lock.json
 └── README.md
 ```
+
+## Technology Stack
+
+- **[mcp-use](https://mcp-use.com)**: MCP server framework with built-in HTTP/SSE support
+- **Nutritionix API**: Nutritional data provider
+- **Supabase**: Database for meal tracking
+- **PostgreSQL**: Direct SQL queries for meal data
 
 ## Development
 
@@ -340,17 +365,18 @@ npm start
 3. The server will start on `http://localhost:3000` (or the port specified in `PORT` environment variable)
 
 4. You can test the MCP endpoints:
-   - Streamable HTTP: `http://localhost:3000/mcp`
-   - SSE: `http://localhost:3000/sse`
-   - SSE message: `http://localhost:3000/message`
+   - MCP endpoint: `http://localhost:3000/mcp`
+   - Inspector UI: `http://localhost:3000/inspector` (for debugging)
 
 ### Logs
 
 All logs are written to stderr to ensure visibility. You'll see:
-- HTTP request/response logs
-- Tool call logs
-- MCP event logs
-- Error logs
+- Tool call logs with detailed parameters
+- Tool execution results
+- Database operation logs
+- Error logs with stack traces
+
+mcp-use provides automatic request/response logging and performance metrics.
 
 ## API Information
 
