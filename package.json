@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "echo 'No build step required'",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "./test-mcp.sh",
+    "dev": "node server.js"
   },
   "keywords": [
     "mcp",
@@ -19,6 +21,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@mcp-use/inspector": "^0.4.2",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "@supabase/supabase-js": "^2.39.0",
     "mcp-use": "^1.1.2",

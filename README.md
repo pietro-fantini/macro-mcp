@@ -2,6 +2,24 @@
 
 An MCP (Model Context Protocol) server built with [mcp-use](https://mcp-use.com) that provides nutritional information for food items using the Nutritionix API. Get calories and macronutrients per 100 grams for any food, and track your meals with Supabase integration.
 
+## Quick Start
+
+```bash
+# Install dependencies
+npm install
+
+# Start the server
+npm start
+
+# Test the server (in another terminal)
+npm test
+
+# Open inspector in browser
+open http://localhost:3000/inspector
+```
+
+The inspector provides a web UI to test all tools interactively!
+
 ## Features
 
 - Get detailed nutritional information for any food item
@@ -89,9 +107,38 @@ The server will start on `http://localhost:3000` with:
 - MCP endpoint: `http://localhost:3000/mcp`
 - Inspector: `http://localhost:3000/inspector`
 
-### Configuration for Claude Desktop
+### Configuration for Cursor
 
-Add the server to your Claude Desktop configuration file:
+Add the server to your Cursor MCP configuration file:
+
+**Location**: `~/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+
+For local development:
+```json
+{
+  "mcpServers": {
+    "macro-mcp": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
+
+**Steps:**
+1. Create the file if it doesn't exist
+2. Add the configuration above
+3. Start your server: `npm start`
+4. Restart Cursor completely
+5. Wait for the MCP icon to show tools loaded
+
+**Troubleshooting Cursor:**
+- If tools don't load, check server is running: http://localhost:3000/inspector
+- Clear Cursor cache and restart
+- Check server logs for connection attempts
+- Verify configuration file path is correct
+- Make sure firewall isn't blocking localhost connections
+
+### Configuration for Claude Desktop
 
 **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
@@ -118,7 +165,7 @@ For mcp-use hosted deployment:
 }
 ```
 
-Replace with your actual server URL.
+**Important**: Restart Claude Desktop completely after updating the config.
 
 ## Usage
 
@@ -364,9 +411,21 @@ npm start
 
 3. The server will start on `http://localhost:3000` (or the port specified in `PORT` environment variable)
 
-4. You can test the MCP endpoints:
-   - MCP endpoint: `http://localhost:3000/mcp`
-   - Inspector UI: `http://localhost:3000/inspector` (for debugging)
+4. Test everything is working:
+```bash
+npm test
+```
+
+This will check:
+- ✓ Server is running
+- ✓ Inspector is accessible
+- ✓ MCP protocol works
+- ✓ All 3 tools are available
+- ✓ Configuration file exists
+
+5. Open the inspector:
+   - Inspector UI: `http://localhost:3000/inspector` (for interactive testing)
+   - MCP endpoint: `http://localhost:3000/mcp` (for programmatic access)
 
 ### Logs
 
