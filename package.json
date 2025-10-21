@@ -4,8 +4,7 @@
   "description": "MCP server for retrieving nutritional information (calories and macronutrients) for foods using the Nutritionix API",
   "type": "module",
   "scripts": {
-    "build": "echo 'No build step required'",
-    "start": "node server.js"
+    "build": "echo 'No build step required'"
   },
   "keywords": [
     "mcp",
@@ -20,9 +19,7 @@
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
-    "@supabase/supabase-js": "^2.39.0",
     "mcp-handler": "^1.0.3",
-    "pg": "^8.11.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {
