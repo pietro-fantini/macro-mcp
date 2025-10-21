@@ -1,9 +1,25 @@
 import { z } from 'zod';
 import { createMcpHandler } from 'mcp-handler';
+import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
+import crypto from 'crypto';
 
 const API_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients";
 const API_KEY = process.env.NUTRITIONIX_API_KEY;
 const API_ID = process.env.NUTRITIONIX_API_ID;
+
+// Supabase setup
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_DB_URL = process.env.SUPABASE_DB_URL;
+
+const supabase = SUPABASE_URL && SUPABASE_ANON_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+const pgPool = SUPABASE_DB_URL
+  ? new pg.Pool({ connectionString: SUPABASE_DB_URL })
+  : null;
 
 async function getNutritionData(food) {
   if (!API_KEY || !API_ID) {
@@ -116,6 +132,132 @@ const handler = createMcpHandler(
               {
                 type: "text",
                 text: `Error fetching nutritional information: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    server.tool(
+      'save_meal',
+      'Save meal macros to Supabase fact_meal_macros table. Records a meal with its nutritional information and items.',
+      {
+        user_id: z.string().describe('The ID of the user recording this meal'),
+        meal: z.enum(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra'])
+          .describe('The type of meal being recorded'),
+        meal_day: z.string().describe('The date of the meal in YYYY-MM-DD format (e.g., "2025-10-21")'),
+        calories: z.number().int().describe('Total calories of the meal (integer)'),
+        macros: z.record(z.number()).describe('Macronutrients as key-value pairs (e.g., {"protein": 25.5, "carbs": 30.2, "fat": 10.5, "sodium_mg": 150})'),
+        meal_items: z.record(z.number()).describe('Meal items with quantities (e.g., {"chicken breast": 150, "rice": 100})'),
+      },
+      async ({ user_id, meal, meal_day, calories, macros, meal_items }) => {
+        process.stderr.write(`[TOOL CALL] save_meal called for user: ${user_id}, meal: ${meal}, day: ${meal_day}\n`);
+        try {
+          if (!supabase) {
+            throw new Error("Supabase is not configured. Please set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.");
+          }
+
+          // Generate UUID for the meal ID
+          const id = crypto.randomUUID();
+          const created_at = new Date().toISOString();
+
+          // Insert into Supabase
+          const { data, error } = await supabase
+            .from('fact_meal_macros')
+            .insert({
+              id,
+              created_at,
+              user_id,
+              meal,
+              meal_day,
+              calories,
+              macros,
+              meal_items
+            })
+            .select()
+            .single();
+
+          if (error) {
+            throw new Error(`Supabase error: ${error.message}`);
+          }
+
+          process.stderr.write(`[TOOL RESULT] Meal saved with ID: ${id}\n`);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: `✅ Meal saved successfully!\n\nMeal ID: ${id}\nUser: ${user_id}\nMeal Type: ${meal}\nMeal Day: ${meal_day}\nCalories: ${calories}\nCreated_at: ${created_at}\n\nMacros: ${JSON.stringify(macros, null, 2)}\nItems: ${JSON.stringify(meal_items, null, 2)}`,
+              },
+            ],
+          };
+        } catch (error) {
+          process.stderr.write(`[TOOL ERROR] ${error.message}\n`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error saving meal: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    );
+
+    server.tool(
+      'get_user_data',
+      'Get user data from Supabase dim_users table. Retrieve user information by username or user ID.',
+      {
+        identifier: z.string().describe('Username or user ID to search for'),
+        search_by: z.enum(['username', 'user_id']).optional().describe('What to search by: "username" or "user_id". Defaults to "username"'),
+      },
+      async ({ identifier, search_by = 'username' }) => {
+        process.stderr.write(`[TOOL CALL] get_user_data called for ${search_by}: ${identifier}\n`);
+        try {
+          if (!pgPool) {
+            throw new Error("PostgreSQL connection is not configured. Please set SUPABASE_DB_URL environment variable.");
+          }
+
+          // Build the query based on search type
+          const column = search_by === 'user_id' ? 'id' : 'username';
+          const query = `SELECT * FROM dim_users WHERE ${column} = $1 AND deleted_at IS NULL`;
+
+          // Execute the query
+          const result = await pgPool.query(query, [identifier]);
+
+          if (!result.rows || result.rows.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `No user found with ${search_by}: ${identifier}`,
+                },
+              ],
+            };
+          }
+
+          const user = result.rows[0];
+          process.stderr.write(`[TOOL RESULT] User found: ${user.username} (${user.id})\n`);
+          
+          return {
+            content: [
+              {
+                type: "text",
+                text: `User Data:\n\nID: ${user.id}\nUsername: ${user.username}\nCreated: ${user.created_at}\nUpdated: ${user.updated_at || 'N/A'}\nDeleted: ${user.deleted_at || 'N/A'}`,
+              },
+            ],
+          };
+        } catch (error) {
+          process.stderr.write(`[TOOL ERROR] ${error.message}\n`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error fetching user data: ${error.message}`,
               },
             ],
             isError: true,

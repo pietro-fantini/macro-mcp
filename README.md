@@ -8,19 +8,34 @@ An MCP (Model Context Protocol) server that provides nutritional information for
 - Returns data per 100 grams for easy comparison
 - Includes calories, protein, fats, carbohydrates, and more
 - Uses the Nutritionix natural language API
+- Save meal data with macros to Supabase
+- Retrieve user information from Supabase
 
 ## Prerequisites
 
 - Node.js (v18 or higher recommended)
 - Nutritionix API credentials (API Key and API ID)
+- Supabase project (for meal tracking and user management features)
 
 ## Getting API Credentials
+
+### Nutritionix API
 
 1. Sign up for a free account at [Nutritionix Developer Portal](https://developer.nutritionix.com/)
 2. Create an application to get your API credentials
 3. You'll receive:
    - `x-app-id` (API ID)
    - `x-app-key` (API Key)
+
+### Supabase (Optional - Required for meal tracking)
+
+1. Create a free account at [Supabase](https://supabase.com/)
+2. Create a new project
+3. Get your credentials from Project Settings > API:
+   - Project URL (SUPABASE_URL)
+   - Anon/Public key (SUPABASE_ANON_KEY)
+4. Get your database connection string from Project Settings > Database:
+   - Connection string in "URI" format (SUPABASE_DB_URL)
 
 ## Installation
 
@@ -59,6 +74,9 @@ vercel
    - Add:
      - `NUTRITIONIX_API_KEY`: Your Nutritionix API key
      - `NUTRITIONIX_API_ID`: Your Nutritionix API ID
+     - `SUPABASE_URL`: Your Supabase project URL (optional, for meal tracking)
+     - `SUPABASE_ANON_KEY`: Your Supabase anon key (optional, for meal tracking)
+     - `SUPABASE_DB_URL`: Your Supabase database connection string (optional, for meal tracking)
 
 5. Your MCP server will be available at: `https://your-project.vercel.app`
 
@@ -83,12 +101,21 @@ Replace `your-project.vercel.app` with your actual Vercel deployment URL.
 
 ## Usage
 
-Once configured in Claude Desktop, you can ask Claude to get nutritional information:
+Once configured in Claude Desktop, you can ask Claude to:
 
-**Example prompts:**
+**Get nutritional information:**
 - "What are the macros for chicken breast?"
 - "Get nutrition information for salmon"
 - "How many calories are in avocado per 100g?"
+
+**Track meals (requires Supabase setup):**
+- "Save my breakfast: 2 eggs and toast"
+- "Record my lunch: grilled chicken salad with 150g chicken and 50g mixed greens"
+- "Log my dinner for today"
+
+**Get user information (requires Supabase setup):**
+- "Get user data for pietro.fantini"
+- "Find user by ID: [user-uuid]"
 
 ### Example Output
 
@@ -127,6 +154,48 @@ Gets nutritional information for a food item per 100 grams.
 - Carbohydrates, Fiber, & Sugars
 - Cholesterol
 - Sodium & Potassium
+
+### save_meal
+
+Save meal macros to Supabase fact_meal_macros table. Records a meal with its nutritional information and items.
+
+**Parameters:**
+- `user_id` (string, required): The ID of the user recording this meal
+- `meal` (enum, required): The type of meal being recorded. Options: 'breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra'
+- `meal_day` (string, required): The date of the meal in YYYY-MM-DD format (e.g., "2025-10-21")
+- `calories` (integer, required): Total calories of the meal
+- `macros` (object, required): Macronutrients as key-value pairs (e.g., `{"protein": 25.5, "carbs": 30.2, "fat": 10.5, "sodium_mg": 150}`)
+- `meal_items` (object, required): Meal items with quantities in grams (e.g., `{"chicken breast": 150, "rice": 100}`)
+
+**Returns:**
+- Confirmation message with meal ID and details
+
+**Example:**
+```
+User: Save my breakfast: 2 eggs and 1 slice of whole wheat bread
+Assistant: [Uses save_meal with calculated macros]
+```
+
+### get_user_data
+
+Get user data from Supabase dim_users table. Retrieve user information by username or user ID.
+
+**Parameters:**
+- `identifier` (string, required): Username or user ID to search for
+- `search_by` (enum, optional): What to search by: "username" or "user_id". Defaults to "username"
+
+**Returns:**
+- User ID
+- Username
+- Created date
+- Updated date
+- Deleted date (if applicable)
+
+**Example:**
+```
+User: Get my user information for pietro.fantini
+Assistant: [Uses get_user_data to retrieve user details]
+```
 
 ## Project Structure
 
