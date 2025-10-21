@@ -1,24 +1,6 @@
 # Macro MCP Server
 
-An MCP (Model Context Protocol) server built with [mcp-use](https://mcp-use.com) that provides nutritional information for food items using the Nutritionix API. Get calories and macronutrients per 100 grams for any food, and track your meals with Supabase integration.
-
-## Quick Start
-
-```bash
-# Install dependencies
-npm install
-
-# Start the server
-npm start
-
-# Test the server (in another terminal)
-npm test
-
-# Open inspector in browser
-open http://localhost:3000/inspector
-```
-
-The inspector provides a web UI to test all tools interactively!
+An MCP (Model Context Protocol) server that provides nutritional information for food items using the Nutritionix API. Get calories and macronutrients per 100 grams for any food.
 
 ## Features
 
@@ -70,11 +52,6 @@ NUTRITIONIX_API_KEY=your_api_key_here
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_anon_key_here
 SUPABASE_DB_URL=postgresql://postgres:[YOUR-PASSWORD]@db.your-project.supabase.co:5432/postgres
-
-# Server configuration
-PORT=3000
-BASE_URL=http://localhost:3000
-OAUTH_PROVIDER=google
 ```
 
 **Getting Supabase credentials:**
@@ -83,244 +60,47 @@ OAUTH_PROVIDER=google
 
 ## Deployment
 
-### Deploy to mcp-use (Recommended)
+### Deploy to Vercel (Recommended)
 
-This server is built with [mcp-use](https://mcp-use.com), which provides a managed hosting platform for MCP servers with features like authentication, monitoring, and automatic scaling.
+1. Fork or clone this repository
 
-1. Sign up at [mcp-use.com](https://mcp-use.com)
+2. Install the Vercel CLI:
+```bash
+npm install -g vercel
+```
 
-2. Deploy your server:
-   - Follow the mcp-use deployment guide
-   - Set environment variables:
+3. Deploy to Vercel:
+```bash
+vercel
+```
+
+4. Set environment variables in your Vercel project:
+   - Go to your project settings on Vercel dashboard
+   - Navigate to "Environment Variables"
+   - Add:
      - `NUTRITIONIX_API_KEY`: Your Nutritionix API key
      - `NUTRITIONIX_API_ID`: Your Nutritionix API ID
-     - `SUPABASE_URL`: Your Supabase project URL
-     - `SUPABASE_ANON_KEY`: Your Supabase anon key
-     - `SUPABASE_DB_URL`: Your Supabase database connection string
 
-3. Your MCP server will be available through the mcp-use platform
-
-### Local Development
-
-Start the server locally:
-
-```bash
-npm start
-```
-
-The server will start on `http://localhost:3000` with:
-- MCP endpoint: `http://localhost:3000/mcp`
-- Inspector: `http://localhost:3000/inspector`
-
-### Configuration for Cursor
-
-Add the server to your Cursor MCP configuration file:
-
-**Location**: `~/Library/Application Support/Cursor/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
-
-For local development:
-```json
-{
-  "mcpServers": {
-    "macro-mcp": {
-      "url": "http://localhost:3000/mcp"
-    }
-  }
-}
-```
-
-**Steps:**
-1. Create the file if it doesn't exist
-2. Add the configuration above
-3. Start your server: `npm start`
-4. Restart Cursor completely
-5. Wait for the MCP icon to show tools loaded
-
-**Troubleshooting Cursor:**
-- If tools don't load, check server is running: http://localhost:3000/inspector
-- Clear Cursor cache and restart
-- Check server logs for connection attempts
-- Verify configuration file path is correct
-- Make sure firewall isn't blocking localhost connections
+5. Your MCP server will be available at: `https://your-project.vercel.app`
 
 ### Configuration for Claude Desktop
+
+After deploying to Vercel, add the server to your Claude Desktop configuration file:
 
 **MacOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 **Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
 
-For local development:
 ```json
 {
   "mcpServers": {
     "macro-mcp": {
-      "url": "http://localhost:3000/mcp"
+      "url": "https://your-project.vercel.app/api/mcp"
     }
   }
 }
 ```
 
-For mcp-use hosted deployment:
-```json
-{
-  "mcpServers": {
-    "macro-mcp": {
-      "url": "https://your-server.mcp-use.com/mcp"
-    }
-  }
-}
-```
-
-**Important**: Restart Claude Desktop completely after updating the config.
-
-## OAuth 2.1 Authentication
-
-This MCP server supports OAuth 2.1 authentication with PKCE, allowing users to authenticate securely without manually managing API tokens. The server acts as an OAuth proxy, redirecting authentication to Supabase Auth.
-
-### How It Works
-
-1. **User adds MCP server** in Claude/Cursor
-2. **OAuth discovery**: Claude automatically discovers OAuth endpoints
-3. **User redirected to login**: Supabase Auth login page (Google, GitHub, etc.)
-4. **Token exchange**: After successful login, tokens are automatically managed
-5. **Automatic authentication**: All subsequent MCP requests include the user's token
-
-### Setup Instructions
-
-#### 1. Configure OAuth Provider in Supabase
-
-1. Go to your Supabase Dashboard → Authentication → Providers
-2. Enable your preferred provider (Google, GitHub, etc.)
-3. Configure the provider with your OAuth credentials
-4. **Important**: Add the callback URL to your provider settings:
-   ```
-   https://your-project.supabase.co/auth/v1/callback
-   ```
-
-#### 2. Add OAuth Callback URL ⚠️ CRITICAL
-
-**This step is REQUIRED or OAuth will fail!**
-
-In your Supabase Dashboard → Authentication → URL Configuration:
-
-1. Scroll to **Redirect URLs** section
-2. **Add ALL callback URLs you will use:**
-
-For **local development AND production**, add BOTH:
-```
-http://localhost:3000/oauth/callback
-https://your-deployed-url.com/oauth/callback
-```
-
-**Example for mcp-use deployment:**
-```
-http://localhost:3000/oauth/callback
-https://your-app.mcp-use.com/oauth/callback
-```
-
-3. Click **Save**
-
-**Important Notes:**
-- ⚠️ You MUST add BOTH URLs (localhost for testing, production for deployment)
-- ⚠️ URLs must match EXACTLY including protocol (http/https) and path
-- ⚠️ If you're getting redirected to `localhost:3000` in production, you forgot to add your production URL here!
-
-#### 3. Set Environment Variables
-
-Add to your `.env` file:
-```bash
-PORT=3000
-BASE_URL=http://localhost:3000  # For local dev
-# BASE_URL=https://your-deployed-url.com  # For production
-
-OAUTH_PROVIDER=google  # Options: google, github, azure, gitlab, bitbucket, etc.
-```
-
-**Supported OAuth Providers:**
-- `google` (default) - Google Sign-In
-- `github` - GitHub OAuth
-- `azure` - Microsoft Azure AD
-- `gitlab` - GitLab OAuth
-- `bitbucket` - Bitbucket OAuth
-- `discord` - Discord OAuth
-- `facebook` - Facebook Login
-- `twitter` - Twitter OAuth
-- Any provider supported by Supabase Auth
-
-#### 4. Connect in Claude
-
-When adding the MCP server in Claude's "Add custom connector" UI:
-
-- **Name**: `macro-mcp` (or any name you prefer)
-- **Remote MCP server URL**: Your server URL (e.g., `https://your-deployed-url.com`)
-- **OAuth Client ID**: Leave empty (uses dynamic registration)
-- **OAuth Client Secret**: Leave empty (public client with PKCE)
-
-Claude will automatically:
-1. Discover OAuth configuration at `/.well-known/oauth-authorization-server`
-2. Register as a client dynamically
-3. Redirect you to Supabase login
-4. Handle token exchange
-5. Include tokens in all MCP requests
-
-### OAuth Endpoints
-
-The server exposes these OAuth endpoints:
-
-- `/.well-known/oauth-authorization-server` - OAuth discovery (RFC 8414)
-- `/oauth/register` - Dynamic client registration (RFC 7591)
-- `/oauth/authorize` - Authorization endpoint
-- `/oauth/token` - Token endpoint
-- `/oauth/callback` - Supabase callback handler
-
-### Security Features
-
-- ✅ **PKCE (RFC 7636)**: Prevents authorization code interception
-- ✅ **Dynamic Client Registration**: No pre-shared secrets needed
-- ✅ **Short-lived Codes**: Authorization codes expire in 1 minute
-- ✅ **Single-use Codes**: Each code can only be exchanged once
-- ✅ **Token Validation**: All MCP requests validate Supabase tokens
-- ✅ **Automatic Scoping**: Queries automatically filtered to authenticated user
-
-### User Experience
-
-Once authenticated:
-- ✅ **No manual user_id**: The `save_meal_macros` tool automatically uses the authenticated user
-- ✅ **Automatic query scoping**: The `query_meal_data` tool automatically filters to the user's data
-- ✅ **Persistent sessions**: Tokens are managed by Claude/Cursor
-- ✅ **Secure**: No tokens exposed to the user
-
-### Troubleshooting OAuth
-
-**Issue**: Redirected to `localhost:3000` even in production
-- **Cause**: Your production callback URL is not whitelisted in Supabase
-- **Solution**: 
-  1. Go to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
-  2. Add your production URL: `https://your-deployed-url.com/oauth/callback`
-  3. Make sure BOTH localhost AND production URLs are in the list
-  4. Click Save
-  5. Redeploy your app to pick up any env var changes
-  6. Check server logs for `[CONFIG] BASE_URL:` to verify it's correct
-
-**Issue**: `"Unsupported provider: provider is not enabled"` (Error code 400)
-- **Solution**: You need to enable the OAuth provider in Supabase Dashboard
-  1. Go to Authentication → Providers
-  2. Find the provider matching your `OAUTH_PROVIDER` env var (e.g., "Google")
-  3. Click Enable and configure OAuth credentials
-  4. Make sure to add the correct callback URL
-
-**Issue**: "Invalid redirect_uri"
-- **Solution**: Ensure the callback URL is configured in Supabase Dashboard → Authentication → URL Configuration
-  - Local: `http://localhost:3000/oauth/callback`
-  - Production: `https://your-deployed-url.com/oauth/callback`
-
-**Issue**: "Authentication failed: invalid_grant"
-- **Solution**: Check that your Supabase OAuth provider is properly configured with valid OAuth credentials from the provider (Google, GitHub, etc.)
-
-**Issue**: OAuth flow starts but redirects to error page
-- **Solution**: Verify that `BASE_URL` environment variable matches your deployed URL exactly
-
-**Issue**: "Invalid or expired token" in MCP requests
-- **Solution**: Re-authenticate by disconnecting and reconnecting the MCP server in Claude
+Replace `your-project.vercel.app` with your actual Vercel deployment URL.
 
 ## Usage
 
@@ -394,6 +174,7 @@ Gets nutritional information for a food item per 100 grams.
 Save meal macros to Supabase `fact_meal_macros` table. Records a complete meal with nutritional information and items.
 
 **Parameters:**
+- `user_id` (string, required): The ID of the user recording this meal
 - `meal` (enum, required): Type of meal - one of: `breakfast`, `morning_snack`, `lunch`, `afternoon_snack`, `dinner`, `extra`
 - `meal_day` (string, required): The date when the meal was consumed in YYYY-MM-DD format (e.g., "2025-10-13"). This can be different from when the meal is recorded, allowing users to log meals retroactively.
 - `calories` (integer, required): Total calories of the meal
@@ -405,11 +186,6 @@ Save meal macros to Supabase `fact_meal_macros` table. Records a complete meal w
 **Returns:**
 - Confirmation with meal ID, timestamp, and full meal details
 
-**Authentication:**
-- 🔒 **OAuth Required**: This tool requires OAuth authentication
-- ✅ **Automatic user_id**: The authenticated user's ID is automatically applied
-- ✅ **No manual user_id needed**: Users don't need to specify their ID
-
 **Example usage:**
 ```
 Save my lunch from yesterday (2025-10-12): 150g chicken breast, 100g rice, 80g broccoli
@@ -417,9 +193,7 @@ Total calories: 450
 Macros: 45g protein, 50g carbs, 8g fat
 ```
 
-**Notes:** 
-- The `meal_day` field allows logging meals retroactively. For example, you can record meals from previous days by specifying the date when they were actually consumed, even if you're entering them later.
-- With OAuth enabled, you don't need to specify `user_id` - it's automatically determined from your authenticated session.
+**Note:** The `meal_day` field allows logging meals retroactively. For example, you can record meals from previous days by specifying the date when they were actually consumed, even if you're entering them later.
 
 ### 3. query_meal_data
 
@@ -437,24 +211,17 @@ Query meal data from Supabase. Execute SQL queries to retrieve meal history, agg
 
 **Parameters:**
 - `query` (string, required): SQL query to execute against the `fact_meal_macros` table
-  - Example: `SELECT * FROM fact_meal_macros WHERE meal_day = '2025-10-13'`
+  - Example: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13'`
 
 **Returns:**
 - Query results formatted as JSON
 
-**Authentication:**
-- 🔒 **OAuth Required**: This tool requires OAuth authentication
-- ✅ **Automatic scoping**: Queries are automatically filtered to only return the authenticated user's data
-- ✅ **No manual user_id needed**: You don't need to include `WHERE user_id = '...'` in your queries
-
 **Example queries:**
-- Get meals for a specific day: `SELECT * FROM fact_meal_macros WHERE meal_day = '2025-10-13' ORDER BY meal`
-- Get last 10 recorded meals: `SELECT * FROM fact_meal_macros ORDER BY created_at DESC LIMIT 10`
-- Total calories for a specific day: `SELECT SUM(calories) FROM fact_meal_macros WHERE meal_day = '2025-10-13'`
-- Daily calorie totals for the last 7 days: `SELECT meal_day, SUM(calories) as total_calories FROM fact_meal_macros WHERE meal_day >= CURRENT_DATE - INTERVAL '7 days' GROUP BY meal_day ORDER BY meal_day DESC`
-- Average calories by meal type: `SELECT meal, COUNT(*) as count, AVG(calories) as avg_calories FROM fact_meal_macros GROUP BY meal`
-
-**Note:** With OAuth authentication, all queries are automatically scoped to your user account. The server injects the appropriate `user_id` filter to ensure you only see your own data.
+- Get meals for a specific day: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13' ORDER BY meal`
+- Get last 10 recorded meals: `SELECT * FROM fact_meal_macros WHERE user_id = 'user123' ORDER BY created_at DESC LIMIT 10`
+- Total calories for a specific day: `SELECT SUM(calories) FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day = '2025-10-13'`
+- Daily calorie totals for the last 7 days: `SELECT meal_day, SUM(calories) as total_calories FROM fact_meal_macros WHERE user_id = 'user123' AND meal_day >= CURRENT_DATE - INTERVAL '7 days' GROUP BY meal_day ORDER BY meal_day DESC`
+- Average calories by meal type: `SELECT meal, COUNT(*) as count, AVG(calories) as avg_calories FROM fact_meal_macros WHERE user_id = 'user123' GROUP BY meal`
 
 ## Database Schema
 
@@ -553,18 +320,11 @@ CREATE INDEX IF NOT EXISTS idx_meal_macros_user_meal_day ON fact_meal_macros(use
 
 ```
 macro-mcp/
-├── server.js                 # MCP server built with mcp-use
-├── package.json              # Dependencies including mcp-use
+├── server.js                 # Main MCP server with HTTP/SSE support
+├── package.json
 ├── package-lock.json
 └── README.md
 ```
-
-## Technology Stack
-
-- **[mcp-use](https://mcp-use.com)**: MCP server framework with built-in HTTP/SSE support
-- **Nutritionix API**: Nutritional data provider
-- **Supabase**: Database for meal tracking
-- **PostgreSQL**: Direct SQL queries for meal data
 
 ## Development
 
@@ -579,31 +339,18 @@ npm start
 
 3. The server will start on `http://localhost:3000` (or the port specified in `PORT` environment variable)
 
-4. Test everything is working:
-```bash
-npm test
-```
-
-This will check:
-- ✓ Server is running
-- ✓ Inspector is accessible
-- ✓ MCP protocol works
-- ✓ All 3 tools are available
-- ✓ Configuration file exists
-
-5. Open the inspector:
-   - Inspector UI: `http://localhost:3000/inspector` (for interactive testing)
-   - MCP endpoint: `http://localhost:3000/mcp` (for programmatic access)
+4. You can test the MCP endpoints:
+   - Streamable HTTP: `http://localhost:3000/mcp`
+   - SSE: `http://localhost:3000/sse`
+   - SSE message: `http://localhost:3000/message`
 
 ### Logs
 
 All logs are written to stderr to ensure visibility. You'll see:
-- Tool call logs with detailed parameters
-- Tool execution results
-- Database operation logs
-- Error logs with stack traces
-
-mcp-use provides automatic request/response logging and performance metrics.
+- HTTP request/response logs
+- Tool call logs
+- MCP event logs
+- Error logs
 
 ## API Information
 
