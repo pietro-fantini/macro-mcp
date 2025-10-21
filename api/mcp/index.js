@@ -209,45 +209,39 @@ const handler = createMcpHandler(
     );
 
     server.tool(
-      'get_user_data',
-      'Get user data from Supabase dim_users table. Retrieve user information by username or user ID.',
+      'get_meal_data',
+      'Query meal data from Supabase fact_meal_macros table. Execute SQL queries to retrieve meal history, aggregations, or specific records. The query MUST be filtered by user_id.',
       {
-        identifier: z.string().describe('Username or user ID to search for'),
-        search_by: z.enum(['username', 'user_id']).optional().describe('What to search by: "username" or "user_id". Defaults to "username"'),
+        user_id: z.string().describe('The user ID to filter meals by (required for security)'),
+        query: z.string().describe('SQL query to execute on fact_meal_macros table (e.g., "SELECT * FROM fact_meal_macros WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10"). Use $1 as placeholder for user_id.'),
       },
-      async ({ identifier, search_by = 'username' }) => {
-        process.stderr.write(`[TOOL CALL] get_user_data called for ${search_by}: ${identifier}\n`);
+      async ({ user_id, query }) => {
+        process.stderr.write(`[TOOL CALL] get_meal_data called for user: ${user_id}, query: ${query.substring(0, 100)}...\n`);
         try {
           if (!pgPool) {
             throw new Error("PostgreSQL connection is not configured. Please set SUPABASE_DB_URL environment variable.");
           }
 
-          // Build the query based on search type
-          const column = search_by === 'user_id' ? 'id' : 'username';
-          const query = `SELECT * FROM dim_users WHERE ${column} = $1 AND deleted_at IS NULL`;
-
-          // Execute the query
-          const result = await pgPool.query(query, [identifier]);
-
-          if (!result.rows || result.rows.length === 0) {
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: `No user found with ${search_by}: ${identifier}`,
-                },
-              ],
-            };
+          // Security check: ensure query contains user_id filter
+          if (!query.toLowerCase().includes('user_id')) {
+            throw new Error("Query must include user_id filter for security reasons.");
           }
 
-          const user = result.rows[0];
-          process.stderr.write(`[TOOL RESULT] User found: ${user.username} (${user.id})\n`);
+          // Execute the SQL query using PostgreSQL pool with user_id as parameter
+          const result = await pgPool.query(query, [user_id]);
+
+          process.stderr.write(`[TOOL RESULT] Query executed successfully, returned ${result.rows?.length || 0} rows\n`);
+          
+          // Format the results nicely
+          const resultText = result.rows && result.rows.length > 0
+            ? `Query Results (${result.rows.length} rows):\n\n${JSON.stringify(result.rows, null, 2)}`
+            : 'Query executed successfully. No results returned.';
           
           return {
             content: [
               {
                 type: "text",
-                text: `User Data:\n\nID: ${user.id}\nUsername: ${user.username}\nCreated: ${user.created_at}\nUpdated: ${user.updated_at || 'N/A'}\nDeleted: ${user.deleted_at || 'N/A'}`,
+                text: resultText,
               },
             ],
           };
@@ -257,7 +251,7 @@ const handler = createMcpHandler(
             content: [
               {
                 type: "text",
-                text: `Error fetching user data: ${error.message}`,
+                text: `Error executing query: ${error.message}`,
               },
             ],
             isError: true,

@@ -9,7 +9,7 @@ An MCP (Model Context Protocol) server that provides nutritional information for
 - Includes calories, protein, fats, carbohydrates, and more
 - Uses the Nutritionix natural language API
 - Save meal data with macros to Supabase
-- Retrieve user information from Supabase
+- Query and retrieve meal history from Supabase with custom SQL
 
 ## Prerequisites
 
@@ -113,9 +113,10 @@ Once configured in Claude Desktop, you can ask Claude to:
 - "Record my lunch: grilled chicken salad with 150g chicken and 50g mixed greens"
 - "Log my dinner for today"
 
-**Get user information (requires Supabase setup):**
-- "Get user data for pietro.fantini"
-- "Find user by ID: [user-uuid]"
+**Query meal data (requires Supabase setup):**
+- "Show me my last 10 meals"
+- "What did I eat yesterday?"
+- "Get my total calories by meal type this week"
 
 ### Example Output
 
@@ -176,25 +177,26 @@ User: Save my breakfast: 2 eggs and 1 slice of whole wheat bread
 Assistant: [Uses save_meal with calculated macros]
 ```
 
-### get_user_data
+### get_meal_data
 
-Get user data from Supabase dim_users table. Retrieve user information by username or user ID.
+Query meal data from Supabase fact_meal_macros table. Execute SQL queries to retrieve meal history, aggregations, or specific records filtered by user_id.
 
 **Parameters:**
-- `identifier` (string, required): Username or user ID to search for
-- `search_by` (enum, optional): What to search by: "username" or "user_id". Defaults to "username"
+- `user_id` (string, required): The user ID to filter meals by (required for security)
+- `query` (string, required): SQL query to execute on fact_meal_macros table. Use `$1` as placeholder for user_id.
 
 **Returns:**
-- User ID
-- Username
-- Created date
-- Updated date
-- Deleted date (if applicable)
+- Query results as JSON array with all matching meal records
 
-**Example:**
+**Example queries:**
+- Get last 10 meals: `"SELECT * FROM fact_meal_macros WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10"`
+- Get meals for a specific day: `"SELECT * FROM fact_meal_macros WHERE user_id = $1 AND meal_day = '2025-10-21'"`
+- Get total calories by meal type: `"SELECT meal, SUM(calories) as total_calories FROM fact_meal_macros WHERE user_id = $1 GROUP BY meal"`
+
+**Example usage:**
 ```
-User: Get my user information for pietro.fantini
-Assistant: [Uses get_user_data to retrieve user details]
+User: Show me my last 5 meals
+Assistant: [Uses get_meal_data with appropriate SQL query]
 ```
 
 ## Project Structure
