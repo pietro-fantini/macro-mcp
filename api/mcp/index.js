@@ -49,8 +49,11 @@ async function verifySupabaseToken(req, bearerToken) {
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error || !user) {
+      console.error('[Auth] Token verification failed:', error?.message || 'No user');
       return undefined;
     }
+
+    console.log('[Auth] Token verified for user:', user.email);
 
     return {
       token: bearerToken,
@@ -62,6 +65,7 @@ async function verifySupabaseToken(req, bearerToken) {
       }
     };
   } catch (error) {
+    console.error('[Auth] Token verification error:', error.message);
     // Token verification failed
     return undefined;
   }
@@ -507,8 +511,8 @@ function getISOWeek(date) {
 
 // Wrap the handler with authentication
 const authHandler = experimental_withMcpAuth(handler, verifySupabaseToken, {
-  required: true, // Require authentication - this makes Cursor show "Connect" button
-  authorizationServers: SUPABASE_URL ? [SUPABASE_URL] : [], // Tell MCP clients to use Supabase for OAuth
+  required: true, // Require authentication - this makes Cursor/Claude show "Connect" button
+  // Don't set authorizationServers - we provide our own via .well-known endpoint
 });
 
 export { authHandler as GET, authHandler as POST, authHandler as DELETE };

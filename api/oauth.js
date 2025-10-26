@@ -1,14 +1,11 @@
 /**
  * OAuth Protected Resource Metadata Endpoint
  * 
- * This endpoint tells MCP clients (like Claude) that OAuth is required
- * and where to authenticate (your Supabase project).
+ * This endpoint tells MCP clients (like Claude) where to find
+ * the OAuth authorization and token endpoints.
  * 
- * According to MCP OAuth spec, this should be served at:
- * /.well-known/oauth-protected-resource
+ * According to RFC 8414, this should return the OAuth server metadata.
  */
-
-const SUPABASE_URL = process.env.SUPABASE_URL;
 
 export default async function handler(req, res) {
   // Only accept GET requests
@@ -16,23 +13,29 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if (!SUPABASE_URL) {
-    console.error('[OAuth Metadata] SUPABASE_URL environment variable is not set');
-    return res.status(500).json({ 
-      error: 'Server configuration error: SUPABASE_URL not configured' 
-    });
-  }
+  // Build the base URL from the request
+  const protocol = req.headers['x-forwarded-proto'] || 'https';
+  const host = req.headers.host;
+  const baseUrl = `${protocol}://${host}`;
+
+  console.log('[OAuth Metadata] Serving OAuth configuration for:', baseUrl);
 
   // Set CORS headers for MCP clients
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Content-Type', 'application/json');
 
-  console.log('[OAuth Metadata] Serving OAuth configuration:', { authorization_servers: [SUPABASE_URL] });
-
-  // Return OAuth metadata as per MCP spec
+  // Return OAuth Authorization Server metadata
+  // This tells Claude where to find our OAuth endpoints
   return res.status(200).json({
-    authorization_servers: [SUPABASE_URL]
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/api/oauth/authorize`,
+    token_endpoint: `${baseUrl}/api/oauth/token`,
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code'],
+    code_challenge_methods_supported: ['S256', 'plain'],
+    token_endpoint_auth_methods_supported: ['none'],
+    scopes_supported: ['openid']
   });
 }
 
