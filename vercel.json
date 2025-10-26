@@ -3,10 +3,6 @@
       "api/mcp/index.js": {
         "memory": 1024,
         "maxDuration": 10
-      },
-      "api/.well-known/oauth-protected-resource/index.js": {
-        "memory": 128,
-        "maxDuration": 5
       }
     }
   }
