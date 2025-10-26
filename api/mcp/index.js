@@ -197,7 +197,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'save_meal',
-      'Save meal macros to Supabase fact_meal_macros table. Records a meal with its nutritional information and items.',
+      '🔐 [REQUIRES AUTH] Save meal macros to Supabase fact_meal_macros table. Records a meal with its nutritional information and items. You must authenticate with Supabase before using this tool.',
       {
         meal: z.enum(['breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra'])
           .describe('The type of meal being recorded'),
@@ -275,7 +275,7 @@ const handler = createMcpHandler(
 
     server.tool(
       'get_meal_data',
-      'Query meal data from Supabase fact_meal_macros table. Retrieve meal history with predefined safe queries that respect RLS policies.',
+      '🔐 [REQUIRES AUTH] Query meal data from Supabase fact_meal_macros table. Retrieve meal history with predefined safe queries that respect RLS policies. You must authenticate with Supabase before using this tool.',
       {
         query_type: z.enum(['recent', 'by_date', 'date_range', 'by_meal_type', 'daily_totals', 'weekly_totals', 'monthly_totals'])
           .describe('Type of query: "recent" (last N meals), "by_date" (specific day), "date_range" (between dates), "by_meal_type" (filter by meal), "daily_totals" (aggregate by day), "weekly_totals" (aggregate by week), "monthly_totals" (aggregate by month)'),
@@ -507,7 +507,7 @@ function getISOWeek(date) {
 
 // Wrap the handler with authentication
 const authHandler = experimental_withMcpAuth(handler, verifySupabaseToken, {
-  required: false, // Authentication is optional - only required for meal tracking tools
+  required: false, // Allow unauthenticated discovery, but tools will check auth
   authorizationServers: SUPABASE_URL ? [SUPABASE_URL] : [], // Tell MCP clients to use Supabase for OAuth
 });
 

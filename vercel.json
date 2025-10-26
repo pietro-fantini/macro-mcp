@@ -4,7 +4,7 @@
         "memory": 1024,
         "maxDuration": 10
       },
-      "api/oauth-metadata.js": {
+      "api/oauth.js": {
         "memory": 256,
         "maxDuration": 5
       }
@@ -12,7 +12,7 @@
     "rewrites": [
       {
         "source": "/.well-known/oauth-protected-resource",
-        "destination": "/api/oauth-metadata"
+        "destination": "/api/oauth"
       }
     ],
     "headers": [
@@ -30,6 +30,19 @@
           {
             "key": "Access-Control-Allow-Headers",
             "value": "Content-Type, Authorization"
+          }
+        ]
+      },
+      {
+        "source": "/.well-known/(.*)",
+        "headers": [
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          },
+          {
+            "key": "Access-Control-Allow-Methods",
+            "value": "GET, OPTIONS"
           }
         ]
       }
