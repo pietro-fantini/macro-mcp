@@ -507,7 +507,7 @@ function getISOWeek(date) {
 
 // Wrap the handler with authentication
 const authHandler = experimental_withMcpAuth(handler, verifySupabaseToken, {
-  required: false, // Allow unauthenticated discovery, but tools will check auth
+  required: true, // Require authentication - this makes Cursor show "Connect" button
   authorizationServers: SUPABASE_URL ? [SUPABASE_URL] : [], // Tell MCP clients to use Supabase for OAuth
 });
 

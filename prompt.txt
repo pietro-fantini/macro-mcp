@@ -1,5 +1,0 @@
-Nor claude or cursor prompt me to connect when connecting my mcp server. They are able to "use it" immediately but when trying they get this error:
-
-[{"type": "text", "text": "Error fetching nutritional information. Please try again.", "uuid": "64f1844b-6fef-4424-b13f-929474009613"}]
-
-I link the mcp docs for oauth @https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization @https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization#2-10-third-party-authorization-flow and the one of claude @https://support.claude.com/en/articles/11503834-building-custom-connectors-via-remote-mcp-servers 
