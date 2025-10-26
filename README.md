@@ -85,6 +85,22 @@ vercel
 
 5. Your MCP server will be available at: `https://your-project.vercel.app`
 
+### ⚠️ CRITICAL: Disable Vercel Authentication
+
+**Your MCP server will NOT work if Vercel Authentication (Deployment Protection) is enabled.**
+
+MCP clients need to access the OAuth metadata endpoint (`/.well-known/oauth-protected-resource`) without authentication. If Vercel Authentication is blocking it, Claude/Cursor will not prompt users to authenticate.
+
+**Steps to disable:**
+1. Go to your Vercel dashboard
+2. Navigate to your project → Settings → Deployment Protection
+3. **Disable** "Vercel Authentication"
+4. Save changes
+
+For more details, see [DISABLE_VERCEL_AUTH.md](./DISABLE_VERCEL_AUTH.md).
+
+**Note:** Your data is still protected by Supabase OAuth + RLS. Vercel Authentication is redundant and breaks the OAuth flow.
+
 ## Authentication Setup
 
 **This server requires OAuth authentication for meal tracking features.**

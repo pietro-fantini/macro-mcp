@@ -173,8 +173,12 @@ const handler = createMcpHandler(
             ],
           };
         } catch (error) {
-          // Redact API errors for security
-          const errorMessage = error.message.includes('API') 
+          // Log the full error to Vercel logs for debugging
+          process.stderr.write(`[TOOL ERROR] get_nutrition failed: ${error.message}\n`);
+          process.stderr.write(`[TOOL ERROR] Stack: ${error.stack}\n`);
+          
+          // Redact API errors for security (but log them above)
+          const errorMessage = error.message.includes('API') || error.message.includes('NUTRITIONIX')
             ? 'Error fetching nutritional information. Please try again.' 
             : `Error: ${error.message}`;
           
@@ -504,6 +508,7 @@ function getISOWeek(date) {
 // Wrap the handler with authentication
 const authHandler = experimental_withMcpAuth(handler, verifySupabaseToken, {
   required: false, // Authentication is optional - only required for meal tracking tools
+  authorizationServers: SUPABASE_URL ? [SUPABASE_URL] : [], // Tell MCP clients to use Supabase for OAuth
 });
 
 export { authHandler as GET, authHandler as POST, authHandler as DELETE };

@@ -3,6 +3,35 @@
       "api/mcp/index.js": {
         "memory": 1024,
         "maxDuration": 10
+      },
+      "api/oauth-metadata.js": {
+        "memory": 256,
+        "maxDuration": 5
       }
-    }
+    },
+    "rewrites": [
+      {
+        "source": "/.well-known/oauth-protected-resource",
+        "destination": "/api/oauth-metadata"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/api/(.*)",
+        "headers": [
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          },
+          {
+            "key": "Access-Control-Allow-Methods",
+            "value": "GET, POST, DELETE, OPTIONS"
+          },
+          {
+            "key": "Access-Control-Allow-Headers",
+            "value": "Content-Type, Authorization"
+          }
+        ]
+      }
+    ]
   }
