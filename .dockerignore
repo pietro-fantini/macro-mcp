@@ -14,7 +14,6 @@ docker-compose.yml
 
 # Legacy files
 api/
-public/
 .well-known/
 vercel.json
 mcp-config.json
