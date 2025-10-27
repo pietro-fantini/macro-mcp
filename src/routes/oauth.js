@@ -11,6 +11,22 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
+// Log all OAuth requests for debugging
+router.use((req, res, next) => {
+  logger.info('OAuth endpoint accessed', {
+    path: req.path,
+    method: req.method,
+    query: req.query,
+    headers: {
+      authorization: req.get('authorization') ? 'Present' : 'None',
+      referer: req.get('referer'),
+      origin: req.get('origin'),
+      userAgent: req.get('user-agent')
+    }
+  });
+  next();
+});
+
 // In-memory store for auth codes (for production, use Redis or similar)
 // Structure: { code: { accessToken, refreshToken, codeChallenge, redirectUri, expiresAt, clientId, scope } }
 const authCodes = new Map();
@@ -45,7 +61,16 @@ router.get('/oauth/authorize', (req, res) => {
     client_id,
     redirect_uri,
     response_type,
-    has_code_challenge: !!code_challenge
+    state,
+    scope,
+    code_challenge: code_challenge?.substring(0, 10) + '...',
+    code_challenge_method,
+    full_query: req.query,
+    headers: {
+      referer: req.get('referer'),
+      origin: req.get('origin'),
+      userAgent: req.get('user-agent')
+    }
   });
 
   // Validate required parameters
