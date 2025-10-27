@@ -222,7 +222,9 @@ router.get('/oauth/callback', async (req, res) => {
   logger.info('OAuth callback received', {
     has_state: !!encodedState,
     has_code: !!supabaseCode,
-    error: authError
+    error: authError,
+    full_query: req.query,
+    full_url: req.url
   });
 
   // Handle Supabase auth errors
