@@ -85,22 +85,105 @@ router.get('/oauth/authorize', (req, res) => {
   // Encode state as base64url for URL safety
   const encodedState = Buffer.from(JSON.stringify(oauthState)).toString('base64url');
 
-  // Redirect to Supabase for authentication
+  // Build Supabase auth URL
   const supabaseAuthUrl = new URL(`${config.supabase.url}/auth/v1/authorize`);
-
-  // Use Google as default provider (you can make this configurable)
   supabaseAuthUrl.searchParams.set('provider', 'google');
-
-  // Request offline_access for refresh token
   supabaseAuthUrl.searchParams.set('scopes', 'openid email offline_access');
 
-  // Redirect back to our callback endpoint
   const callbackUrl = `${config.baseUrl}/oauth/callback?state=${encodedState}`;
   supabaseAuthUrl.searchParams.set('redirect_to', callbackUrl);
 
-  logger.info('Redirecting to Supabase for authentication');
+  logger.info('Showing authorization page');
 
-  res.redirect(302, supabaseAuthUrl.toString());
+  // Show authorization consent page with auto-redirect
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Authorize Macro MCP</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+          margin: 0;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+          background: white;
+          padding: 3rem;
+          border-radius: 1rem;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+          text-align: center;
+          max-width: 400px;
+        }
+        h1 {
+          color: #333;
+          margin-bottom: 1rem;
+          font-size: 1.75rem;
+        }
+        p {
+          color: #666;
+          line-height: 1.6;
+          margin-bottom: 2rem;
+        }
+        .btn {
+          background: #667eea;
+          color: white;
+          border: none;
+          padding: 1rem 2rem;
+          border-radius: 0.5rem;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          text-decoration: none;
+          display: inline-block;
+          transition: background 0.3s;
+        }
+        .btn:hover {
+          background: #5568d3;
+        }
+        .spinner {
+          border: 3px solid #f3f3f3;
+          border-top: 3px solid #667eea;
+          border-radius: 50%;
+          width: 40px;
+          height: 40px;
+          animation: spin 1s linear infinite;
+          margin: 2rem auto;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .auto-redirect {
+          font-size: 0.875rem;
+          color: #999;
+          margin-top: 1rem;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🔐 Authorize Macro MCP</h1>
+        <p>You'll be redirected to Google to sign in and authorize access to your macro tracking data.</p>
+        <div class="spinner"></div>
+        <p class="auto-redirect">Redirecting automatically in 2 seconds...</p>
+        <a href="${supabaseAuthUrl.toString()}" class="btn">Continue to Google Sign-In</a>
+      </div>
+      <script>
+        // Auto-redirect after 2 seconds
+        setTimeout(() => {
+          window.location.href = '${supabaseAuthUrl.toString()}';
+        }, 2000);
+      </script>
+    </body>
+    </html>
+  `);
 });
 
 /**
@@ -194,7 +277,75 @@ router.get('/oauth/callback', async (req, res) => {
 
     logger.info('Redirecting to client', { redirect_uri: oauthState.redirectUri });
 
-    res.redirect(302, redirectUrl.toString());
+    // Show success page before redirecting back to client
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Authorization Successful</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          }
+          .container {
+            background: white;
+            padding: 3rem;
+            border-radius: 1rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 400px;
+          }
+          h1 {
+            color: #10b981;
+            margin-bottom: 1rem;
+            font-size: 1.75rem;
+          }
+          p {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+          }
+          .check {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+          }
+          .info {
+            background: #f3f4f6;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1.5rem;
+            font-size: 0.875rem;
+            color: #6b7280;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="check">✓</div>
+          <h1>Authorization Successful!</h1>
+          <p>You've successfully signed in as <strong>${sessionData.user.email}</strong></p>
+          <p>Completing authentication...</p>
+          <div class="info">
+            You can close this window and return to Claude.
+          </div>
+        </div>
+        <script>
+          // Redirect back to the MCP client
+          setTimeout(() => {
+            window.location.href = '${redirectUrl.toString()}';
+          }, 2000);
+        </script>
+      </body>
+      </html>
+    `);
 
   } catch (error) {
     logger.error('OAuth callback error', { error: error.message, stack: error.stack });
