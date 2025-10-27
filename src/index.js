@@ -53,15 +53,31 @@ app.get('/health', (req, res) => {
 setupOAuthRoutes(app);
 setupMcpRoutes(app);
 
-// OAuth discovery endpoint for MCP clients
+// OAuth discovery endpoints for MCP clients
 app.get('/.well-known/oauth-protected-resource', (req, res) => {
   const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
 
-  logger.info('OAuth discovery endpoint accessed');
+  logger.info('OAuth protected resource endpoint accessed');
 
   res.json({
     resource: `${baseUrl}/mcp`,
     authorization_servers: [`${baseUrl}`]
+  });
+});
+
+app.get('/.well-known/oauth-authorization-server', (req, res) => {
+  const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+
+  logger.info('OAuth authorization server metadata endpoint accessed');
+
+  res.json({
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/oauth/authorize`,
+    token_endpoint: `${baseUrl}/oauth/token`,
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code'],
+    code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none']
   });
 });
 
