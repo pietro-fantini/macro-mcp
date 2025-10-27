@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Completing Sign In...</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    .container {
+      background: white;
+      padding: 3rem;
+      border-radius: 1rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center;
+      max-width: 400px;
+    }
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 2rem auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .error {
+      color: #dc2626;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Completing Sign In...</h2>
+    <div class="spinner"></div>
+    <p id="status">Processing authentication...</p>
+    <p class="error" id="error" style="display: none;"></p>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    const statusEl = document.getElementById('status');
+    const errorEl = document.getElementById('error');
+
+    async function handleCallback() {
+      try {
+        // Get the OAuth state from URL hash or query
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const queryParams = new URLSearchParams(window.location.search);
+
+        // Supabase uses hash fragments for tokens
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const error = hashParams.get('error') || queryParams.get('error');
+
+        // Get our OAuth state (passed through Supabase)
+        const state = queryParams.get('state');
+
+        if (error) {
+          throw new Error(`Authentication failed: ${error}`);
+        }
+
+        if (!accessToken) {
+          throw new Error('No access token received from Supabase');
+        }
+
+        if (!state) {
+          throw new Error('Missing OAuth state parameter');
+        }
+
+        statusEl.textContent = 'Authentication successful! Completing...';
+
+        // Send the tokens back to our server
+        const response = await fetch('/oauth/callback', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            state: state
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error_description || 'Failed to complete authentication');
+        }
+
+        const data = await response.json();
+
+        // Redirect to the MCP client with the authorization code
+        window.location.href = data.redirect_url;
+
+      } catch (err) {
+        console.error('Callback error:', err);
+        statusEl.textContent = 'Authentication failed';
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      }
+    }
+
+    handleCallback();
+  </script>
+</body>
+</html>

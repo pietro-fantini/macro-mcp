@@ -116,7 +116,8 @@ router.get('/oauth/authorize', (req, res) => {
   // Google uses 'email' scope, not 'offline_access' - offline access is via access_type parameter
   supabaseAuthUrl.searchParams.set('scopes', 'openid email');
 
-  const callbackUrl = `${config.baseUrl}/oauth/callback?state=${encodedState}`;
+  // Use intermediate callback page that handles Supabase's hash-based response
+  const callbackUrl = `${config.baseUrl}/oauth/supabase-callback.html?state=${encodedState}`;
   supabaseAuthUrl.searchParams.set('redirect_to', callbackUrl);
 
   logger.info('Showing authorization page');
@@ -213,8 +214,104 @@ router.get('/oauth/authorize', (req, res) => {
 });
 
 /**
+ * POST /oauth/callback
+ * Step 2b: Receive tokens from intermediate callback page
+ */
+router.post('/oauth/callback', async (req, res) => {
+  const { access_token, refresh_token, state: encodedState } = req.body;
+
+  logger.info('OAuth callback POST received', {
+    has_access_token: !!access_token,
+    has_refresh_token: !!refresh_token,
+    has_state: !!encodedState
+  });
+
+  if (!encodedState || !access_token) {
+    logger.error('Missing state or access token in callback');
+    return res.status(400).json({
+      error: 'invalid_request',
+      error_description: 'Missing state or access_token'
+    });
+  }
+
+  try {
+    // Decode OAuth state
+    const stateJson = Buffer.from(encodedState, 'base64url').toString('utf-8');
+    const oauthState = JSON.parse(stateJson);
+
+    // Verify state timestamp (prevent replay attacks)
+    const stateAge = Date.now() - oauthState.timestamp;
+    if (stateAge > 10 * 60 * 1000) { // 10 minutes
+      throw new Error('OAuth state expired');
+    }
+
+    logger.info('OAuth state decoded successfully');
+
+    // Get user info from Supabase using the access token
+    const supabase = createClient(config.supabase.url, config.supabase.anonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${access_token}`
+        }
+      }
+    });
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      logger.error('Failed to get user from Supabase', { error: userError });
+      throw new Error('Failed to get user information');
+    }
+
+    logger.info('User info obtained', {
+      user_id: user.id,
+      email: user.email
+    });
+
+    // Generate authorization code for MCP client
+    const authCode = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = Date.now() + (config.oauth.codeExpirySeconds * 1000);
+
+    // Store auth code with Supabase tokens
+    authCodes.set(authCode, {
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      codeChallenge: oauthState.codeChallenge,
+      codeChallengeMethod: oauthState.codeChallengeMethod,
+      redirectUri: oauthState.redirectUri,
+      clientId: oauthState.clientId,
+      scope: oauthState.scope,
+      expiresAt,
+      userId: user.id,
+      email: user.email
+    });
+
+    logger.info('Authorization code generated', { code: authCode.substring(0, 10) + '...' });
+
+    // Return redirect URL for the client
+    const redirectUrl = new URL(oauthState.redirectUri);
+    redirectUrl.searchParams.set('code', authCode);
+    redirectUrl.searchParams.set('state', oauthState.clientState);
+
+    logger.info('Returning redirect to intermediate page', { redirect_uri: oauthState.redirectUri });
+
+    res.json({
+      redirect_url: redirectUrl.toString(),
+      user_email: user.email
+    });
+
+  } catch (error) {
+    logger.error('OAuth callback error', { error: error.message, stack: error.stack });
+    res.status(500).json({
+      error: 'server_error',
+      error_description: error.message
+    });
+  }
+});
+
+/**
  * GET /oauth/callback
- * Step 2: Supabase redirects back after authentication
+ * Step 2a: Legacy GET handler for backward compatibility
  */
 router.get('/oauth/callback', async (req, res) => {
   const { state: encodedState, code: supabaseCode, error: authError } = req.query;
