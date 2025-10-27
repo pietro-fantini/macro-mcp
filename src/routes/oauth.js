@@ -510,11 +510,14 @@ router.post('/oauth/register', async (req, res) => {
   logger.info('Client registration request', {
     client_name,
     redirect_uris,
-    grant_types
+    grant_types,
+    token_endpoint_auth_method,
+    full_body: req.body
   });
 
   // Validate required fields
   if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+    logger.error('Registration failed: invalid redirect_uris', { redirect_uris });
     return res.status(400).json({
       error: 'invalid_redirect_uri',
       error_description: 'redirect_uris is required and must be a non-empty array'
@@ -527,6 +530,11 @@ router.post('/oauth/register', async (req, res) => {
   const invalidGrantTypes = requestedGrantTypes.filter(gt => !allowedGrantTypes.includes(gt));
 
   if (invalidGrantTypes.length > 0) {
+    logger.error('Registration failed: invalid grant_types', {
+      requested: requestedGrantTypes,
+      invalid: invalidGrantTypes,
+      allowed: allowedGrantTypes
+    });
     return res.status(400).json({
       error: 'invalid_grant_type',
       error_description: `Unsupported grant types: ${invalidGrantTypes.join(', ')}. Supported: ${allowedGrantTypes.join(', ')}`
@@ -535,6 +543,7 @@ router.post('/oauth/register', async (req, res) => {
 
   // Validate auth method (we only support 'none' for public clients with PKCE)
   if (token_endpoint_auth_method && token_endpoint_auth_method !== 'none') {
+    logger.error('Registration failed: invalid auth method', { token_endpoint_auth_method });
     return res.status(400).json({
       error: 'invalid_client_metadata',
       error_description: 'Only token_endpoint_auth_method "none" is supported (PKCE required)'
