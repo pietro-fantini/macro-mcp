@@ -1,6 +1,50 @@
+# Dependencies
 node_modules/
+package-lock.json
+
+# Environment variables
 .env
-.DS_Store
+.env.local
+.env.production
+
+# Logs
+logs/
 *.log
+npm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+.nyc_output/
+
+# Build outputs
+dist/
+build/
+
+# Legacy
 .claude
 .vercel
+
+QUICKSTART.md
+DEPLOYMENT_GUIDE.md
+CHECKLIST.md
+REFACTOR_SUMMARY.md

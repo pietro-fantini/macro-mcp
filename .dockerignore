@@ -1,0 +1,24 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.git
+.gitignore
+README.md
+.vscode
+.idea
+*.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Legacy files
+api/
+public/
+.well-known/
+vercel.json
+mcp-config.json
+
+# Docs
+docs/
+*.md

@@ -1,10 +1,17 @@
 {
   "name": "macro-mcp",
-  "version": "1.0.0",
-  "description": "MCP server for retrieving nutritional information (calories and macronutrients) for foods using the Nutritionix API",
+  "version": "2.0.0",
+  "description": "MCP server for nutritional tracking with Supabase authentication - Express.js + Docker",
   "type": "module",
+  "main": "src/index.js",
   "scripts": {
-    "build": "echo 'No build step required'"
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "docker:build": "docker build -t macro-mcp .",
+    "docker:run": "docker run -p 3000:3000 --env-file .env macro-mcp",
+    "docker:compose": "docker-compose up --build",
+    "inspector": "npx @modelcontextprotocol/inspector --config mcp-config.json",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
     "mcp",
@@ -12,26 +19,24 @@
     "macronutrients",
     "calories",
     "nutritionix",
-    "food",
-    "health"
+    "supabase",
+    "oauth",
+    "express"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
     "@supabase/supabase-js": "^2.48.1",
-    "mcp-handler": "^1.0.3",
-    "zod": "^3.24.1"
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
-    "vercel": "^48.5.0"
-  },
-  "overrides": {
-    "esbuild": "^0.25.11",
-    "path-to-regexp": "^8.3.0",
-    "undici": "^7.16.0"
+    "@modelcontextprotocol/inspector": "^0.17.2",
+    "commander": "^14.0.2"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }

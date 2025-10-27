@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "macro-mcp-local": {
+      "url": "http://localhost:3000/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}
