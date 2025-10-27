@@ -11,6 +11,9 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 
+// Serve static files from public directory
+app.use(express.static('public'));
+
 // Only parse JSON for non-MCP routes
 // The MCP transport needs to read the raw stream
 app.use((req, res, next) => {

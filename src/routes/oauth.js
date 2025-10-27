@@ -538,6 +538,14 @@ router.post('/oauth/register', async (req, res) => {
 });
 
 /**
+ * GET /oauth/test-callback
+ * Test callback endpoint for manual OAuth testing
+ */
+router.get('/oauth/test-callback', (req, res) => {
+  res.redirect(`/oauth/test.html?${req.url.split('?')[1] || ''}`);
+});
+
+/**
  * Setup OAuth routes on Express app
  */
 export function setupOAuthRoutes(app) {
