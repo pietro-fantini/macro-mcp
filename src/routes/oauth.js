@@ -113,7 +113,8 @@ router.get('/oauth/authorize', (req, res) => {
   // Build Supabase auth URL
   const supabaseAuthUrl = new URL(`${config.supabase.url}/auth/v1/authorize`);
   supabaseAuthUrl.searchParams.set('provider', 'google');
-  supabaseAuthUrl.searchParams.set('scopes', 'openid email offline_access');
+  // Google uses 'email' scope, not 'offline_access' - offline access is via access_type parameter
+  supabaseAuthUrl.searchParams.set('scopes', 'openid email');
 
   const callbackUrl = `${config.baseUrl}/oauth/callback?state=${encodedState}`;
   supabaseAuthUrl.searchParams.set('redirect_to', callbackUrl);
