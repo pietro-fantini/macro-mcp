@@ -541,27 +541,44 @@ router.post('/oauth/register', async (req, res) => {
     });
   }
 
-  // Validate auth method (we only support 'none' for public clients with PKCE)
-  if (token_endpoint_auth_method && token_endpoint_auth_method !== 'none') {
-    logger.error('Registration failed: invalid auth method', { token_endpoint_auth_method });
+  // Validate auth method - support both 'none' (PKCE) and 'client_secret_post'
+  const allowedAuthMethods = ['none', 'client_secret_post', 'client_secret_basic'];
+  const requestedAuthMethod = token_endpoint_auth_method || 'none';
+
+  if (!allowedAuthMethods.includes(requestedAuthMethod)) {
+    logger.error('Registration failed: invalid auth method', {
+      token_endpoint_auth_method: requestedAuthMethod,
+      allowed: allowedAuthMethods
+    });
     return res.status(400).json({
       error: 'invalid_client_metadata',
-      error_description: 'Only token_endpoint_auth_method "none" is supported (PKCE required)'
+      error_description: `Unsupported token_endpoint_auth_method. Supported: ${allowedAuthMethods.join(', ')}`
     });
   }
 
   // Generate client ID (in production, you might want to store this in a database)
   const clientId = `mcp_${crypto.randomBytes(16).toString('hex')}`;
 
-  // For public clients (PKCE), we don't issue a client_secret
+  // Build registration response
   const registrationResponse = {
     client_id: clientId,
     client_name: client_name || 'MCP Client',
     redirect_uris,
     grant_types: requestedGrantTypes,
-    token_endpoint_auth_method: 'none',
+    token_endpoint_auth_method: requestedAuthMethod,
     client_id_issued_at: Math.floor(Date.now() / 1000)
   };
+
+  // Generate client_secret if using client_secret_post or client_secret_basic
+  if (requestedAuthMethod === 'client_secret_post' || requestedAuthMethod === 'client_secret_basic') {
+    const clientSecret = crypto.randomBytes(32).toString('base64url');
+    registrationResponse.client_secret = clientSecret;
+
+    logger.info('Generated client secret for confidential client', {
+      client_id: clientId,
+      auth_method: requestedAuthMethod
+    });
+  }
 
   logger.info('Client registered successfully', {
     client_id: clientId,
