@@ -132,12 +132,14 @@ logger.info('MCP server connected to transport');
 /**
  * POST /mcp
  * Streamable HTTP endpoint for MCP protocol
+ * Requires OAuth authentication per MCP Authorization spec
  */
 router.post('/mcp', async (req, res) => {
   logger.info('MCP request received', {
     userAgent: req.get('user-agent'),
     origin: req.get('origin'),
-    method: req.method
+    method: req.method,
+    hasAuth: !!req.headers.authorization
   });
 
   // Extract auth token if present
@@ -146,13 +148,74 @@ router.post('/mcp', async (req, res) => {
     ? authHeader.substring(7)
     : null;
 
-  let authInfo = null;
-  if (bearerToken) {
-    authInfo = await verifySupabaseToken(bearerToken);
-    if (authInfo) {
-      logger.info('Request authenticated', { user_id: authInfo.userId });
-    }
+  // Per MCP spec: If no auth token provided, return 401 with WWW-Authenticate header
+  // This signals to the client that OAuth is required
+  if (!bearerToken) {
+    logger.info('No authorization token provided, returning 401');
+
+    const baseUrl = config.baseUrl || 'http://localhost:3000';
+    const resourceMetadataUrl = `${baseUrl}/.well-known/oauth-protected-resource`;
+
+    // Set WWW-Authenticate header BEFORE sending response (per RFC 6750 and RFC 9728)
+    res.setHeader(
+      'WWW-Authenticate',
+      `Bearer error="invalid_request", ` +
+      `error_description="No access token was provided in this request", ` +
+      `resource_metadata="${resourceMetadataUrl}"`
+    );
+
+    res.status(401).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32001,
+        message: 'Unauthorized: Authentication required',
+        data: {
+          error: 'invalid_request',
+          error_description: 'No access token was provided in this request',
+          resource_metadata: resourceMetadataUrl
+        }
+      },
+      id: null
+    });
+
+    return;
   }
+
+  // Verify the token
+  const authInfo = await verifySupabaseToken(bearerToken);
+
+  if (!authInfo) {
+    logger.warn('Invalid or expired token');
+
+    const baseUrl = config.baseUrl || 'http://localhost:3000';
+    const resourceMetadataUrl = `${baseUrl}/.well-known/oauth-protected-resource`;
+
+    // Set WWW-Authenticate header BEFORE sending response
+    res.setHeader(
+      'WWW-Authenticate',
+      `Bearer error="invalid_token", ` +
+      `error_description="The access token is invalid or expired", ` +
+      `resource_metadata="${resourceMetadataUrl}"`
+    );
+
+    res.status(401).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32001,
+        message: 'Unauthorized: Invalid or expired token',
+        data: {
+          error: 'invalid_token',
+          error_description: 'The access token is invalid or expired',
+          resource_metadata: resourceMetadataUrl
+        }
+      },
+      id: null
+    });
+
+    return;
+  }
+
+  logger.info('Request authenticated', { user_id: authInfo.userId });
 
   // Store auth info in req so it's available in the extra parameter
   req.auth = authInfo;
