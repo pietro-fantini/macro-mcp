@@ -521,15 +521,15 @@ router.post('/oauth/register', async (req, res) => {
     });
   }
 
-  // Validate grant types
-  const allowedGrantTypes = ['authorization_code'];
+  // Validate grant types - allow both authorization_code and refresh_token
+  const allowedGrantTypes = ['authorization_code', 'refresh_token'];
   const requestedGrantTypes = grant_types || ['authorization_code'];
   const invalidGrantTypes = requestedGrantTypes.filter(gt => !allowedGrantTypes.includes(gt));
 
   if (invalidGrantTypes.length > 0) {
     return res.status(400).json({
       error: 'invalid_grant_type',
-      error_description: `Unsupported grant types: ${invalidGrantTypes.join(', ')}`
+      error_description: `Unsupported grant types: ${invalidGrantTypes.join(', ')}. Supported: ${allowedGrantTypes.join(', ')}`
     });
   }
 
