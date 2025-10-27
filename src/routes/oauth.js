@@ -324,6 +324,69 @@ router.post('/oauth/token', async (req, res) => {
 });
 
 /**
+ * POST /oauth/register
+ * Dynamic Client Registration (RFC 7591)
+ * Allows MCP clients to automatically register themselves
+ */
+router.post('/oauth/register', async (req, res) => {
+  const { client_name, redirect_uris, grant_types, token_endpoint_auth_method } = req.body;
+
+  logger.info('Client registration request', {
+    client_name,
+    redirect_uris,
+    grant_types
+  });
+
+  // Validate required fields
+  if (!redirect_uris || !Array.isArray(redirect_uris) || redirect_uris.length === 0) {
+    return res.status(400).json({
+      error: 'invalid_redirect_uri',
+      error_description: 'redirect_uris is required and must be a non-empty array'
+    });
+  }
+
+  // Validate grant types
+  const allowedGrantTypes = ['authorization_code'];
+  const requestedGrantTypes = grant_types || ['authorization_code'];
+  const invalidGrantTypes = requestedGrantTypes.filter(gt => !allowedGrantTypes.includes(gt));
+
+  if (invalidGrantTypes.length > 0) {
+    return res.status(400).json({
+      error: 'invalid_grant_type',
+      error_description: `Unsupported grant types: ${invalidGrantTypes.join(', ')}`
+    });
+  }
+
+  // Validate auth method (we only support 'none' for public clients with PKCE)
+  if (token_endpoint_auth_method && token_endpoint_auth_method !== 'none') {
+    return res.status(400).json({
+      error: 'invalid_client_metadata',
+      error_description: 'Only token_endpoint_auth_method "none" is supported (PKCE required)'
+    });
+  }
+
+  // Generate client ID (in production, you might want to store this in a database)
+  const clientId = `mcp_${crypto.randomBytes(16).toString('hex')}`;
+
+  // For public clients (PKCE), we don't issue a client_secret
+  const registrationResponse = {
+    client_id: clientId,
+    client_name: client_name || 'MCP Client',
+    redirect_uris,
+    grant_types: requestedGrantTypes,
+    token_endpoint_auth_method: 'none',
+    client_id_issued_at: Math.floor(Date.now() / 1000)
+  };
+
+  logger.info('Client registered successfully', {
+    client_id: clientId,
+    client_name: registrationResponse.client_name
+  });
+
+  res.status(201).json(registrationResponse);
+});
+
+/**
  * Setup OAuth routes on Express app
  */
 export function setupOAuthRoutes(app) {
