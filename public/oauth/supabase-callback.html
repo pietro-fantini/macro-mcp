@@ -102,8 +102,25 @@
 
         const data = await response.json();
 
-        // Redirect to the MCP client with the authorization code
-        window.location.href = data.redirect_url;
+        // Show success message instead of auto-redirecting
+        statusEl.textContent = `Success! Signed in as ${data.user_email}`;
+        document.querySelector('.spinner').style.display = 'none';
+        
+        // Add close instruction
+        const closeMessage = document.createElement('p');
+        closeMessage.style.marginTop = '1.5rem';
+        closeMessage.style.color = '#10b981';
+        closeMessage.style.fontWeight = '600';
+        closeMessage.textContent = 'You can close this window now.';
+        document.querySelector('.container').appendChild(closeMessage);
+        
+        // Add check icon
+        const checkIcon = document.createElement('div');
+        checkIcon.style.fontSize = '4rem';
+        checkIcon.style.marginTop = '1rem';
+        checkIcon.textContent = '✓';
+        checkIcon.style.color = '#10b981';
+        document.querySelector('.container').insertBefore(checkIcon, document.querySelector('.container').firstChild);
 
       } catch (err) {
         console.error('Callback error:', err);

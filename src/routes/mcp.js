@@ -10,15 +10,13 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
-import { getNutritionTools } from '../tools/nutrition.js';
 import { getMealTools } from '../tools/meals.js';
 
 const router = Router();
 
 // Get all available tools once
-const nutritionTools = getNutritionTools();
 const mealTools = getMealTools();
-const allTools = [...nutritionTools, ...mealTools];
+const allTools = [...mealTools];
 
 // Create a single MCP server instance
 const mcpServer = new Server(

@@ -45,9 +45,11 @@ setInterval(() => {
 /**
  * GET /oauth/authorize
  * Step 1: Client initiates OAuth flow
+ * Supports both standard OAuth params and MCP client-specific flows
  */
 router.get('/oauth/authorize', (req, res) => {
-  const {
+  // Extract params from query (some MCP clients may use different sources)
+  let {
     client_id,
     redirect_uri,
     response_type,
@@ -73,14 +75,26 @@ router.get('/oauth/authorize', (req, res) => {
     }
   });
 
-  // Validate required parameters
-  if (!redirect_uri || !response_type || !state) {
-    return res.status(400).json({
-      error: 'invalid_request',
-      error_description: 'Missing required OAuth parameters (redirect_uri, response_type, state)'
-    });
+  // Handle MCP clients that may not provide all standard OAuth params
+  // Generate defaults for missing params to support simplified MCP configurations
+  if (!redirect_uri) {
+    // Use a default redirect URI for MCP clients
+    redirect_uri = 'http://localhost:3000/oauth/callback';
+    logger.info('Using default redirect_uri for MCP client', { redirect_uri });
   }
 
+  if (!response_type) {
+    response_type = 'code';
+    logger.info('Using default response_type: code');
+  }
+
+  if (!state) {
+    // Generate a state parameter if not provided
+    state = crypto.randomBytes(16).toString('base64url');
+    logger.info('Generated state parameter for MCP client', { state: state.substring(0, 10) + '...' });
+  }
+
+  // Validate response_type
   if (response_type !== 'code') {
     return res.status(400).json({
       error: 'unsupported_response_type',
@@ -88,11 +102,16 @@ router.get('/oauth/authorize', (req, res) => {
     });
   }
 
-  // PKCE: Require code_challenge
-  if (!code_challenge || code_challenge_method !== 'S256') {
+  // PKCE: Handle missing code_challenge (some MCP clients may not support PKCE)
+  if (!code_challenge) {
+    // Generate a code challenge for clients that don't support PKCE
+    code_challenge = crypto.randomBytes(32).toString('base64url');
+    code_challenge_method = 'plain'; // Use plain method as fallback
+    logger.info('Generated code_challenge for MCP client without PKCE support');
+  } else if (code_challenge_method !== 'S256' && code_challenge_method !== 'plain') {
     return res.status(400).json({
       error: 'invalid_request',
-      error_description: 'PKCE is required. Must include code_challenge with S256 method'
+      error_description: 'code_challenge_method must be S256 or plain'
     });
   }
 
@@ -122,7 +141,10 @@ router.get('/oauth/authorize', (req, res) => {
 
   logger.info('Showing authorization page');
 
-  // Show authorization consent page with auto-redirect
+  // Build signup URL with OAuth state preserved
+  const signupUrl = `${config.baseUrl}/oauth/signup.html?state=${encodedState}`;
+
+  // Show authorization consent page with signup option
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -170,44 +192,43 @@ router.get('/oauth/authorize', (req, res) => {
           text-decoration: none;
           display: inline-block;
           transition: background 0.3s;
+          margin: 0.5rem;
         }
         .btn:hover {
           background: #5568d3;
         }
-        .spinner {
-          border: 3px solid #f3f3f3;
-          border-top: 3px solid #667eea;
-          border-radius: 50%;
-          width: 40px;
-          height: 40px;
-          animation: spin 1s linear infinite;
-          margin: 2rem auto;
+        .btn-secondary {
+          background: #6b7280;
         }
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+        .btn-secondary:hover {
+          background: #4b5563;
         }
-        .auto-redirect {
+        .signup-link {
+          margin-top: 2rem;
+          padding-top: 1.5rem;
+          border-top: 1px solid #e5e7eb;
+          color: #6b7280;
           font-size: 0.875rem;
-          color: #999;
-          margin-top: 1rem;
+        }
+        .signup-link a {
+          color: #667eea;
+          text-decoration: none;
+          font-weight: 600;
+        }
+        .signup-link a:hover {
+          text-decoration: underline;
         }
       </style>
     </head>
     <body>
       <div class="container">
         <h1>🔐 Authorize Macro MCP</h1>
-        <p>You'll be redirected to Google to sign in and authorize access to your macro tracking data.</p>
-        <div class="spinner"></div>
-        <p class="auto-redirect">Redirecting automatically in 2 seconds...</p>
-        <a href="${supabaseAuthUrl.toString()}" class="btn">Continue to Google Sign-In</a>
+        <p>Sign in to authorize access to your macro tracking data.</p>
+        <a href="${supabaseAuthUrl.toString()}" class="btn">Continue with Google</a>
+        <div class="signup-link">
+          Don't have an account? <a href="${signupUrl}">Sign up</a>
+        </div>
       </div>
-      <script>
-        // Auto-redirect after 2 seconds
-        setTimeout(() => {
-          window.location.href = '${supabaseAuthUrl.toString()}';
-        }, 2000);
-      </script>
     </body>
     </html>
   `);
@@ -402,7 +423,7 @@ router.get('/oauth/callback', async (req, res) => {
 
     logger.info('Redirecting to client', { redirect_uri: oauthState.redirectUri });
 
-    // Show success page before redirecting back to client
+    // Show success page without auto-redirect
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -441,14 +462,16 @@ router.get('/oauth/callback', async (req, res) => {
           .check {
             font-size: 4rem;
             margin-bottom: 1rem;
+            color: #10b981;
           }
-          .info {
+          .close-message {
             background: #f3f4f6;
             padding: 1rem;
             border-radius: 0.5rem;
             margin-top: 1.5rem;
             font-size: 0.875rem;
-            color: #6b7280;
+            color: #10b981;
+            font-weight: 600;
           }
         </style>
       </head>
@@ -457,17 +480,10 @@ router.get('/oauth/callback', async (req, res) => {
           <div class="check">✓</div>
           <h1>Authorization Successful!</h1>
           <p>You've successfully signed in as <strong>${sessionData.user.email}</strong></p>
-          <p>Completing authentication...</p>
-          <div class="info">
-            You can close this window and return to Claude.
+          <div class="close-message">
+            Success - you can close this window now.
           </div>
         </div>
-        <script>
-          // Redirect back to the MCP client
-          setTimeout(() => {
-            window.location.href = '${redirectUrl.toString()}';
-          }, 2000);
-        </script>
       </body>
       </html>
     `);
@@ -552,15 +568,29 @@ router.post('/oauth/token', async (req, res) => {
   }
 
   // Verify code_challenge matches code_verifier
-  const computedChallenge = crypto
-    .createHash('sha256')
-    .update(code_verifier)
-    .digest('base64url');
+  let computedChallenge;
+  if (codeData.codeChallengeMethod === 'S256') {
+    computedChallenge = crypto
+      .createHash('sha256')
+      .update(code_verifier)
+      .digest('base64url');
+  } else if (codeData.codeChallengeMethod === 'plain') {
+    // For plain method, the verifier should match the challenge directly
+    computedChallenge = code_verifier;
+  } else {
+    logger.error('Unsupported code_challenge_method', { method: codeData.codeChallengeMethod });
+    authCodes.delete(code);
+    return res.status(400).json({
+      error: 'invalid_grant',
+      error_description: 'Unsupported code_challenge_method'
+    });
+  }
 
   if (computedChallenge !== codeData.codeChallenge) {
     logger.error('PKCE verification failed', {
       expected: codeData.codeChallenge,
-      computed: computedChallenge
+      computed: computedChallenge,
+      method: codeData.codeChallengeMethod
     });
 
     authCodes.delete(code);
@@ -686,6 +716,39 @@ router.post('/oauth/register', async (req, res) => {
   });
 
   res.status(201).json(registrationResponse);
+});
+
+/**
+ * GET /oauth/signup.html
+ * Serve signup page with Supabase config injected
+ */
+router.get('/oauth/signup.html', async (req, res) => {
+  const fs = await import('fs/promises');
+  const path = await import('path');
+  const { fileURLToPath } = await import('url');
+  
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const signupPath = path.join(__dirname, '../../public/oauth/signup.html');
+  
+  try {
+    const html = await fs.readFile(signupPath, 'utf-8');
+    
+    // Inject Supabase configuration
+    const htmlWithConfig = html.replace(
+      "const supabaseUrl = window.SUPABASE_URL || 'YOUR_SUPABASE_URL';",
+      `const supabaseUrl = '${config.supabase.url}';`
+    ).replace(
+      "const supabaseAnonKey = window.SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';",
+      `const supabaseAnonKey = '${config.supabase.anonKey}';`
+    );
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.send(htmlWithConfig);
+  } catch (error) {
+    logger.error('Failed to serve signup page', { error: error.message });
+    res.status(500).send('Internal server error');
+  }
 });
 
 /**

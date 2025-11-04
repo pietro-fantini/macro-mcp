@@ -6,8 +6,6 @@ import { logger } from '../utils/logger.js';
 
 // Required environment variables
 const REQUIRED_VARS = [
-  'NUTRITIONIX_API_KEY',
-  'NUTRITIONIX_API_ID',
   'SUPABASE_URL',
   'SUPABASE_ANON_KEY',
   'OAUTH_CLIENT_SECRET'
@@ -58,11 +56,6 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   baseUrl: process.env.BASE_URL,
   logLevel: process.env.LOG_LEVEL || 'info',
-
-  nutritionix: {
-    apiKey: process.env.NUTRITIONIX_API_KEY,
-    apiId: process.env.NUTRITIONIX_API_ID
-  },
 
   supabase: {
     url: process.env.SUPABASE_URL,
