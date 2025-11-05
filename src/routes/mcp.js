@@ -128,11 +128,10 @@ await mcpServer.connect(transport);
 logger.info('MCP server connected to transport');
 
 /**
- * POST /mcp
- * Streamable HTTP endpoint for MCP protocol
+ * Handle MCP requests (both POST and GET for SSE)
  * Requires OAuth authentication per MCP Authorization spec
  */
-router.post('/mcp', async (req, res) => {
+async function handleMcpRequest(req, res) {
   logger.info('MCP request received', {
     userAgent: req.get('user-agent'),
     origin: req.get('origin'),
@@ -215,20 +214,22 @@ router.post('/mcp', async (req, res) => {
 
   logger.info('Request authenticated', { user_id: authInfo.userId });
 
-  // Store auth info in req so it's available in the extra parameter
-  req.auth = authInfo;
-
   // Handle the request/response
   try {
-    // The transport will parse the body itself
-    await transport.handleRequest(req, res, undefined);
+    // Pass auth info as the third parameter (extra context) to the transport
+    // This will be available in the tool call handler via the 'extra' parameter
+    await transport.handleRequest(req, res, { authInfo });
   } catch (error) {
     logger.error('MCP request error', { error: error.message, stack: error.stack });
     if (!res.headersSent) {
       res.status(500).json({ error: 'Internal server error' });
     }
   }
-});
+}
+
+// Register both POST and GET handlers for MCP endpoint
+router.post('/mcp', handleMcpRequest);
+router.get('/mcp', handleMcpRequest);
 
 /**
  * Setup MCP routes on Express app

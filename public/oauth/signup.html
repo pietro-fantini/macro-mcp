@@ -325,32 +325,40 @@
             // User is immediately signed in (no email confirmation required)
             showSuccess('Account created successfully! Completing authentication...');
             
-            // Continue OAuth flow by posting to callback
-            const response = await fetch('/oauth/callback', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                access_token: data.session.access_token,
-                refresh_token: data.session.refresh_token,
-                state: oauthState
-              })
-            });
+            try {
+              // Continue OAuth flow by posting to callback
+              const response = await fetch('/oauth/callback', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  access_token: data.session.access_token,
+                  refresh_token: data.session.refresh_token,
+                  state: oauthState
+                })
+              });
 
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.error_description || 'Failed to complete authentication');
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error_description || 'Failed to complete authentication');
+              }
+
+              const responseData = await response.json();
+              
+              // Show success briefly then redirect
+              setTimeout(() => {
+                window.location.href = responseData.redirect_url;
+              }, 1000);
+            } catch (oauthError) {
+              console.error('OAuth flow error:', oauthError);
+              setLoading(false, signupBtn);
+              showError('Failed to complete authentication. ' + oauthError.message);
             }
-
-            const responseData = await response.json();
-            
-            // Show success briefly then redirect
-            setTimeout(() => {
-              window.location.href = responseData.redirect_url;
-            }, 1000);
           } else {
-            throw new Error('Unexpected signup state');
+            // No session and no confirmation - unexpected state
+            setLoading(false, signupBtn);
+            throw new Error('Unexpected signup state: no session or confirmation');
           }
         }
 
