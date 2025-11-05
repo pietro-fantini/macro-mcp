@@ -129,109 +129,11 @@ router.get('/oauth/authorize', (req, res) => {
   // Encode state as base64url for URL safety
   const encodedState = Buffer.from(JSON.stringify(oauthState)).toString('base64url');
 
-  // Build Supabase auth URL
-  const supabaseAuthUrl = new URL(`${config.supabase.url}/auth/v1/authorize`);
-  supabaseAuthUrl.searchParams.set('provider', 'google');
-  // Google uses 'email' scope, not 'offline_access' - offline access is via access_type parameter
-  supabaseAuthUrl.searchParams.set('scopes', 'openid email');
+  logger.info('Redirecting directly to signin/signup page');
 
-  // Use intermediate callback page that handles Supabase's hash-based response
-  const callbackUrl = `${config.baseUrl}/oauth/supabase-callback.html?state=${encodedState}`;
-  supabaseAuthUrl.searchParams.set('redirect_to', callbackUrl);
-
-  logger.info('Showing authorization page');
-
-  // Build signup URL with OAuth state preserved
+  // Redirect directly to the modern signin/signup page with OAuth state
   const signupUrl = `${config.baseUrl}/oauth/signup.html?state=${encodedState}`;
-
-  // Show authorization consent page with signup option
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Authorize Macro MCP</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          min-height: 100vh;
-          margin: 0;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .container {
-          background: white;
-          padding: 3rem;
-          border-radius: 1rem;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-          text-align: center;
-          max-width: 400px;
-        }
-        h1 {
-          color: #333;
-          margin-bottom: 1rem;
-          font-size: 1.75rem;
-        }
-        p {
-          color: #666;
-          line-height: 1.6;
-          margin-bottom: 2rem;
-        }
-        .btn {
-          background: #667eea;
-          color: white;
-          border: none;
-          padding: 1rem 2rem;
-          border-radius: 0.5rem;
-          font-size: 1rem;
-          font-weight: 600;
-          cursor: pointer;
-          text-decoration: none;
-          display: inline-block;
-          transition: background 0.3s;
-          margin: 0.5rem;
-        }
-        .btn:hover {
-          background: #5568d3;
-        }
-        .btn-secondary {
-          background: #6b7280;
-        }
-        .btn-secondary:hover {
-          background: #4b5563;
-        }
-        .signup-link {
-          margin-top: 2rem;
-          padding-top: 1.5rem;
-          border-top: 1px solid #e5e7eb;
-          color: #6b7280;
-          font-size: 0.875rem;
-        }
-        .signup-link a {
-          color: #667eea;
-          text-decoration: none;
-          font-weight: 600;
-        }
-        .signup-link a:hover {
-          text-decoration: underline;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>🔐 Authorize Macro MCP</h1>
-        <p>Sign in to authorize access to your macro tracking data.</p>
-        <a href="${supabaseAuthUrl.toString()}" class="btn">Continue with Google</a>
-        <div class="signup-link">
-          Don't have an account? <a href="${signupUrl}">Sign up</a>
-        </div>
-      </div>
-    </body>
-    </html>
-  `);
+  res.redirect(signupUrl);
 });
 
 /**
