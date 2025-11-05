@@ -4,6 +4,7 @@
  */
 
 import { Router } from 'express';
+import { AsyncLocalStorage } from 'async_hooks';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -11,6 +12,9 @@ import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { getMealTools } from '../tools/meals.js';
+
+// AsyncLocalStorage for request-scoped auth info
+const authStorage = new AsyncLocalStorage();
 
 const router = Router();
 
@@ -56,8 +60,10 @@ mcpServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     throw new Error(`Unknown tool: ${toolName}`);
   }
 
-  // Get auth info from the request extra data
-  const authInfo = extra?.authInfo;
+  // Get auth info from AsyncLocalStorage (set during request authentication)
+  const authInfo = authStorage.getStore();
+
+  logger.info('Tool auth check', { tool: toolName, hasAuthInfo: !!authInfo, userId: authInfo?.userId });
 
   // Check if tool requires auth
   if (tool.requiresAuth) {
@@ -214,11 +220,14 @@ async function handleMcpRequest(req, res) {
 
   logger.info('Request authenticated', { user_id: authInfo.userId });
 
-  // Handle the request/response
+  // Handle the request/response within AsyncLocalStorage context
+  // This makes authInfo available to all async operations in the request
   try {
-    // Pass auth info as the third parameter (extra context) to the transport
-    // This will be available in the tool call handler via the 'extra' parameter
-    await transport.handleRequest(req, res, { authInfo });
+    await authStorage.run(authInfo, async () => {
+      // Transport.handleRequest only accepts (req, res)
+      // AuthInfo is retrieved from authStorage.getStore() in the tool handler
+      await transport.handleRequest(req, res);
+    });
   } catch (error) {
     logger.error('MCP request error', { error: error.message, stack: error.stack });
     if (!res.headersSent) {
