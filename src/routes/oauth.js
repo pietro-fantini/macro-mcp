@@ -423,7 +423,7 @@ router.get('/oauth/callback', async (req, res) => {
 
     logger.info('Redirecting to client', { redirect_uri: oauthState.redirectUri });
 
-    // Show success page without auto-redirect
+    // Show success page before redirecting to MCP client
     res.send(`
       <!DOCTYPE html>
       <html>
@@ -481,9 +481,15 @@ router.get('/oauth/callback', async (req, res) => {
           <h1>Authorization Successful!</h1>
           <p>You've successfully signed in as <strong>${sessionData.user.email}</strong></p>
           <div class="close-message">
-            Success - you can close this window now.
+            Completing authentication...
           </div>
         </div>
+        <script>
+          // Redirect to MCP client after brief delay (OAuth requires this redirect)
+          setTimeout(() => {
+            window.location.href = '${redirectUrl.toString()}';
+          }, 1500);
+        </script>
       </body>
       </html>
     `);

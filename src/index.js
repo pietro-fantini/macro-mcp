@@ -11,9 +11,6 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 
-// Serve static files from public directory
-app.use(express.static('public'));
-
 // Only parse JSON for non-MCP routes
 // The MCP transport needs to read the raw stream
 app.use((req, res, next) => {
@@ -52,9 +49,12 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Setup routes
+// Setup routes BEFORE static files so custom routes take precedence
 setupOAuthRoutes(app);
 setupMcpRoutes(app);
+
+// Serve static files from public directory (after routes)
+app.use(express.static('public'));
 
 // OAuth discovery endpoints for MCP clients
 app.get('/.well-known/oauth-protected-resource', (req, res) => {

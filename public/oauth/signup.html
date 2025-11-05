@@ -218,6 +218,14 @@
     const supabaseUrl = window.SUPABASE_URL || 'YOUR_SUPABASE_URL';
     const supabaseAnonKey = window.SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
 
+    // Validate Supabase configuration
+    if (supabaseUrl === 'YOUR_SUPABASE_URL' || supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY') {
+      console.error('Supabase configuration not properly injected:', { supabaseUrl, supabaseAnonKey });
+      showError('Configuration error. Please try again or contact support.');
+    }
+
+    console.log('Initializing Supabase client with URL:', supabaseUrl);
+
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -285,51 +293,64 @@
         }
 
         if (data?.user) {
-          // Check if email confirmation is required
+          // Check if this email already exists
           if (data.user.identities && data.user.identities.length === 0) {
             showError('An account with this email already exists. Please sign in instead.');
             setLoading(false, signupBtn);
             return;
           }
 
-          // If email confirmation is required, show message
-          if (data.user.confirmation_sent_at) {
+          // Check if email confirmation is required
+          const needsConfirmation = data.user.confirmation_sent_at || !data.session;
+          
+          if (needsConfirmation) {
+            // Email confirmation required
             showSuccess('Account created! Please check your email to confirm your account, then sign in.');
+            setLoading(false, signupBtn);
+            
+            // After 5 seconds, offer to go back to sign in
             setTimeout(() => {
-              // Redirect back to sign in
-              window.location.href = `/oauth/authorize?${window.location.search.substring(1).replace(/state=[^&]*/, `state=${oauthState}`)}`;
-            }, 3000);
-          } else {
-            // User is signed up and confirmed, proceed with OAuth flow
+              const stateDecoded = JSON.parse(atob(oauthState.replace(/-/g, '+').replace(/_/g, '/')));
+              const authUrl = new URL('/oauth/authorize', window.location.origin);
+              authUrl.searchParams.set('redirect_uri', stateDecoded.redirectUri);
+              authUrl.searchParams.set('response_type', 'code');
+              authUrl.searchParams.set('state', stateDecoded.clientState);
+              authUrl.searchParams.set('client_id', stateDecoded.clientId);
+              authUrl.searchParams.set('scope', stateDecoded.scope);
+              authUrl.searchParams.set('code_challenge', stateDecoded.codeChallenge);
+              authUrl.searchParams.set('code_challenge_method', stateDecoded.codeChallengeMethod);
+              window.location.href = authUrl.toString();
+            }, 5000);
+          } else if (data.session) {
+            // User is immediately signed in (no email confirmation required)
             showSuccess('Account created successfully! Completing authentication...');
             
-            // Get the session token
-            const { data: sessionData } = await supabase.auth.getSession();
-            
-            if (sessionData?.session) {
-              // Continue OAuth flow by posting to callback
-              const response = await fetch('/oauth/callback', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  access_token: sessionData.session.access_token,
-                  refresh_token: sessionData.session.refresh_token,
-                  state: oauthState
-                })
-              });
+            // Continue OAuth flow by posting to callback
+            const response = await fetch('/oauth/callback', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token,
+                state: oauthState
+              })
+            });
 
-              if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error_description || 'Failed to complete authentication');
-              }
-
-              const responseData = await response.json();
-              
-              // Redirect to the MCP client
-              window.location.href = responseData.redirect_url;
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error_description || 'Failed to complete authentication');
             }
+
+            const responseData = await response.json();
+            
+            // Show success briefly then redirect
+            setTimeout(() => {
+              window.location.href = responseData.redirect_url;
+            }, 1000);
+          } else {
+            throw new Error('Unexpected signup state');
           }
         }
 
@@ -341,26 +362,44 @@
     });
 
     // Handle Google signup
-    googleSignupBtn.addEventListener('click', async () => {
+    googleSignupBtn.addEventListener('click', async (e) => {
+      e.preventDefault();
       setLoading(true, googleSignupBtn);
+      errorMessage.classList.remove('show');
 
       try {
         // Build redirect URL with OAuth state
         const callbackUrl = `${window.location.origin}/oauth/supabase-callback.html?state=${oauthState}`;
 
+        console.log('Initiating Google OAuth with callback:', callbackUrl);
+
         // Sign in with Google (this works for both signup and signin)
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: callbackUrl
+            redirectTo: callbackUrl,
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent'
+            }
           }
         });
 
         if (error) {
+          console.error('Google OAuth error:', error);
           throw error;
         }
 
-        // Supabase will handle the redirect
+        // If we reach here, check if the redirect happened
+        console.log('Google OAuth initiated:', data);
+        
+        // The redirect should happen automatically
+        // If it doesn't happen within 3 seconds, show an error
+        setTimeout(() => {
+          showError('Google sign-in window did not open. Please check your popup blocker and try again.');
+          setLoading(false, googleSignupBtn);
+        }, 3000);
+
       } catch (error) {
         console.error('Google signup error:', error);
         showError(error.message || 'An error occurred with Google signup. Please try again.');
@@ -371,8 +410,24 @@
     // Handle sign in link
     signinLink.addEventListener('click', (e) => {
       e.preventDefault();
-      // Redirect back to authorization page with state preserved
-      window.location.href = `/oauth/authorize?state=${oauthState}`;
+      // Parse the original OAuth state to get the parameters
+      try {
+        const stateDecoded = JSON.parse(atob(oauthState.replace(/-/g, '+').replace(/_/g, '/')));
+        // Redirect back to authorization page preserving all OAuth params
+        const authUrl = new URL('/oauth/authorize', window.location.origin);
+        authUrl.searchParams.set('redirect_uri', stateDecoded.redirectUri);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('state', stateDecoded.clientState);
+        authUrl.searchParams.set('client_id', stateDecoded.clientId);
+        authUrl.searchParams.set('scope', stateDecoded.scope);
+        authUrl.searchParams.set('code_challenge', stateDecoded.codeChallenge);
+        authUrl.searchParams.set('code_challenge_method', stateDecoded.codeChallengeMethod);
+        window.location.href = authUrl.toString();
+      } catch (err) {
+        // Fallback: just redirect to authorize endpoint
+        console.error('Error decoding state:', err);
+        window.location.href = '/oauth/authorize';
+      }
     });
   </script>
 </body>

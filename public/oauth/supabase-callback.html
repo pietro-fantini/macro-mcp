@@ -102,17 +102,9 @@
 
         const data = await response.json();
 
-        // Show success message instead of auto-redirecting
+        // Show success message briefly before redirecting to MCP client
         statusEl.textContent = `Success! Signed in as ${data.user_email}`;
         document.querySelector('.spinner').style.display = 'none';
-        
-        // Add close instruction
-        const closeMessage = document.createElement('p');
-        closeMessage.style.marginTop = '1.5rem';
-        closeMessage.style.color = '#10b981';
-        closeMessage.style.fontWeight = '600';
-        closeMessage.textContent = 'You can close this window now.';
-        document.querySelector('.container').appendChild(closeMessage);
         
         // Add check icon
         const checkIcon = document.createElement('div');
@@ -121,6 +113,19 @@
         checkIcon.textContent = '✓';
         checkIcon.style.color = '#10b981';
         document.querySelector('.container').insertBefore(checkIcon, document.querySelector('.container').firstChild);
+        
+        // Add close instruction
+        const closeMessage = document.createElement('p');
+        closeMessage.style.marginTop = '1.5rem';
+        closeMessage.style.color = '#10b981';
+        closeMessage.style.fontWeight = '600';
+        closeMessage.textContent = 'Completing authentication...';
+        document.querySelector('.container').appendChild(closeMessage);
+        
+        // Redirect to MCP client after brief delay (OAuth requires this redirect)
+        setTimeout(() => {
+          window.location.href = data.redirect_url;
+        }, 1500);
 
       } catch (err) {
         console.error('Callback error:', err);
