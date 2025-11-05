@@ -1,25 +1,28 @@
-# Macro MCP Server
+# 🥗 Macro MCP Server
 
-A production-ready MCP (Model Context Protocol) server for nutritional tracking with OAuth 2.0 authentication. Built with Express.js, containerized with Docker, and ready for cloud deployment.
+A production-ready MCP (Model Context Protocol) server for personal macro tracking with OAuth 2.0 authentication. Built with Express.js, containerized with Docker, and ready for cloud deployment on Railway, AWS, or any container platform.
 
-## 🚀 Features
+## ✨ Features
 
-- **Nutritional Information**: Get detailed macros for any food item using Nutritionix API
-- **Meal Tracking**: Save and query meal history with per-user data isolation
-- **OAuth 2.0 + PKCE**: Secure authentication flow with Supabase
-- **Row-Level Security**: Database-level data isolation per user
-- **Docker Ready**: Fully containerized for consistent deployments
-- **Cloud Portable**: Deploy to Railway, AWS ECS, Google Cloud Run, or any container platform
-- **Production Logging**: Structured JSON logs for easy monitoring
+- **📊 Meal Tracking**: Save and query your meal history with full nutritional data
+- **🔐 Secure Authentication**: OAuth 2.0 with PKCE flow + Google Sign-In + Email/Password
+- **👤 User Isolation**: Row-Level Security ensures each user only sees their own data
+- **🎨 Modern UI**: Beautiful sign-in/sign-up experience with tab navigation
+- **🐳 Docker Ready**: Fully containerized for consistent deployments
+- **☁️ Cloud Portable**: Deploy to Railway, AWS ECS, Google Cloud Run, or any platform
+- **📝 Production Logging**: Structured JSON logs with AsyncLocalStorage for request tracing
+- **🔄 Multi-Client Support**: Works seamlessly with Claude Desktop, Cursor, and ChatGPT
 
 ## 📋 Prerequisites
 
-- Node.js 20 or higher
-- Docker (for containerized deployment)
-- Nutritionix API credentials ([Get here](https://developer.nutritionix.com/))
-- Supabase project with Auth enabled ([Get started](https://supabase.com/))
+- **Node.js 20+** for local development
+- **Docker** (optional, for containerized deployment)
+- **Supabase Account** with Auth enabled ([Get started](https://supabase.com/))
+  - Create a project
+  - Set up Auth with Google OAuth provider (optional)
+  - Enable email/password authentication
 
-## 🔧 Setup
+## 🚀 Quick Start
 
 ### 1. Clone and Install
 
@@ -31,13 +34,7 @@ npm install
 
 ### 2. Configure Environment Variables
 
-Copy the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your credentials:
+Create a `.env` file in the project root:
 
 ```env
 # Server Configuration
@@ -46,11 +43,7 @@ NODE_ENV=development
 LOG_LEVEL=info
 BASE_URL=http://localhost:3000
 
-# Nutritionix API (from https://developer.nutritionix.com/)
-NUTRITIONIX_API_KEY=your_key_here
-NUTRITIONIX_API_ID=your_id_here
-
-# Supabase (from your Supabase project settings)
+# Supabase (from your Supabase project settings → API)
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your_anon_key_here
 
@@ -58,252 +51,335 @@ SUPABASE_ANON_KEY=your_anon_key_here
 OAUTH_CLIENT_SECRET=your_random_secret_here
 ```
 
-### 3. Configure Supabase OAuth Redirect URLs
+### 3. Set Up Supabase Database
 
-In your Supabase Dashboard:
+#### Create the meals table:
+
+```sql
+-- Create meals table
+CREATE TABLE fact_meal_macros (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  meal TEXT NOT NULL CHECK (meal IN ('breakfast', 'morning_snack', 'lunch', 'afternoon_snack', 'dinner', 'extra')),
+  meal_day DATE NOT NULL,
+  calories INTEGER NOT NULL,
+  macros JSONB NOT NULL,
+  meal_items JSONB NOT NULL
+);
+
+-- Create index for faster queries
+CREATE INDEX idx_meal_macros_user_day ON fact_meal_macros(user_id, meal_day DESC);
+
+-- Enable Row Level Security
+ALTER TABLE fact_meal_macros ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only see their own meals
+CREATE POLICY "Users can view own meals"
+  ON fact_meal_macros
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Policy: Users can only insert their own meals
+CREATE POLICY "Users can insert own meals"
+  ON fact_meal_macros
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can update their own meals
+CREATE POLICY "Users can update own meals"
+  ON fact_meal_macros
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Policy: Users can delete their own meals
+CREATE POLICY "Users can delete own meals"
+  ON fact_meal_macros
+  FOR DELETE
+  USING (auth.uid() = user_id);
+```
+
+#### Configure OAuth Redirect URLs in Supabase:
 
 1. Go to **Authentication** → **URL Configuration**
 2. Add these redirect URLs:
-   - Local: `http://localhost:3000/oauth/callback`
-   - Railway: `https://macro-mcp.railway.app/oauth/callback` (update after deployment)
+   - **Local**: `http://localhost:3000/oauth/supabase-callback.html`
+   - **Production**: `https://your-app.railway.app/oauth/supabase-callback.html`
 
-### 4. Verify Database Setup
+#### Enable Google OAuth (optional):
 
-Ensure your Supabase database has:
+1. Go to **Authentication** → **Providers** → **Google**
+2. Enable Google provider
+3. Add your Google OAuth Client ID and Secret
+4. Set authorized redirect URI: `https://your-project.supabase.co/auth/v1/callback`
 
-1. Table `fact_meal_macros` with appropriate columns
-2. RLS (Row Level Security) policies enabled:
-   - Users can only read/write their own rows
-   - Policy example: `auth.uid() = user_id`
+#### Configure Email Auth:
 
-## 🏃 Running Locally
+1. Go to **Authentication** → **Providers** → **Email**
+2. Ensure "Enable Email provider" is ON
+3. Configure email templates as needed
+4. Optionally disable "Confirm email" for faster testing
 
-### Option 1: Node.js (Development)
+### 4. Run the Server
 
+**Development mode (with hot reload):**
 ```bash
 npm run dev
 ```
 
-Server runs at `http://localhost:3000`
-
-### Option 2: Docker Compose (Production-like)
-
+**Production mode:**
 ```bash
-npm run docker:compose
+npm start
 ```
 
-Or manually:
+Server will be available at `http://localhost:3000`
 
+### 5. Test the Server
+
+Check if it's running:
 ```bash
-docker-compose up --build
+curl http://localhost:3000/health
 ```
 
-### Option 3: Docker (Manual)
-
-```bash
-# Build
-docker build -t macro-mcp .
-
-# Run
-docker run -p 3000:3000 --env-file .env macro-mcp
-```
-
-## 🧪 Testing with MCP Inspector
-
-The MCP Inspector is a visual tool for testing your MCP server:
-
-```bash
-# Start your server first
-npm run dev
-
-# In another terminal, launch inspector
-npm run inspector
-```
-
-This opens a web UI at `http://localhost:6274` where you can:
-- Test tool calls (`get_nutrition`, `save_meal`, `get_meal_data`)
-- Test OAuth authentication flow
-- View request/response history
-- Debug tool parameters
-
-### Example Test Commands
-
-**Get nutrition info:**
+Expected response:
 ```json
 {
-  "tool": "get_nutrition",
-  "arguments": {
-    "food": "chicken breast"
-  }
+  "status": "ok",
+  "service": "macro-mcp",
+  "version": "2.0.0",
+  "timestamp": "2025-11-05T10:30:00.000Z"
 }
 ```
 
-**Save a meal (requires auth):**
-```json
-{
-  "tool": "save_meal",
-  "arguments": {
-    "meal": "breakfast",
-    "meal_day": "2025-01-27",
-    "calories": 350,
-    "macros": {
-      "protein": 25,
-      "carbs": 30,
-      "fat": 10
-    },
-    "meal_items": {
-      "eggs": 100,
-      "toast": 50
-    }
-  }
-}
-```
+## 🔌 Connecting to AI Clients
 
-## 🚂 Deploying to Railway
+### Claude Desktop
 
-### Step 1: Create Railway Project
-
-1. Go to [Railway](https://railway.app/)
-2. Click "New Project" → "Deploy from GitHub repo"
-3. Select your repository
-
-### Step 2: Configure Environment Variables
-
-In Railway dashboard, add these environment variables:
-
-```
-NUTRITIONIX_API_KEY=<your_key>
-NUTRITIONIX_API_ID=<your_id>
-SUPABASE_URL=<your_supabase_url>
-SUPABASE_ANON_KEY=<your_anon_key>
-OAUTH_CLIENT_SECRET=<your_secret>
-NODE_ENV=production
-LOG_LEVEL=info
-```
-
-**Important:** Railway automatically sets `PORT` - don't override it!
-
-### Step 3: Update BASE_URL
-
-After deployment, Railway gives you a URL like `https://macro-mcp.railway.app`.
-
-1. Update `BASE_URL` in Railway environment variables:
-   ```
-   BASE_URL=https://macro-mcp.railway.app
-   ```
-2. Update Supabase OAuth redirect URL:
-   - Add `https://macro-mcp.railway.app/oauth/callback` to Supabase Auth settings
-
-### Step 4: Deploy
-
-Railway auto-deploys from your GitHub repo. Every push to `main` triggers a new deployment.
-
-Check deployment status:
-- Railway dashboard shows build logs
-- Health check: `https://your-app.railway.app/health`
-
-## 🔐 Connecting to Claude Desktop
-
-After deployment, configure Claude Desktop to use your MCP server:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%/Claude/claude_desktop_config.json`
+**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`  
+**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
   "mcpServers": {
     "macro-mcp": {
-      "url": "https://macro-mcp.railway.app/mcp"
+      "url": "http://localhost:3000/mcp"
     }
   }
 }
 ```
 
-Replace `macro-mcp.railway.app` with your actual Railway URL.
+For production:
+```json
+{
+  "mcpServers": {
+    "macro-mcp": {
+      "url": "https://your-app.railway.app/mcp"
+    }
+  }
+}
+```
+
+### Cursor
+
+**macOS**: `~/.cursor/mcp.json`  
+**Windows**: `%USERPROFILE%\.cursor\mcp.json`
+
+```json
+{
+  "mcpServers": {
+    "user-macro-mcp": {
+      "url": "http://localhost:3000/mcp"
+    }
+  }
+}
+```
 
 ### OAuth Flow
 
-1. Restart Claude Desktop
-2. Claude will detect OAuth is required
-3. Click "Connect" in Claude Desktop
-4. You'll be redirected to Supabase login
-5. Choose "Sign in with Google" or "Email"
-6. After login, you'll be redirected back to Claude
-7. Now you can use all tools!
+1. Restart your AI client (Claude/Cursor)
+2. The client will detect OAuth is required
+3. Click "Connect" or authorize when prompted
+4. You'll see a modern authentication page with two options:
+   - **Sign In**: For existing users (Google or Email)
+   - **Sign Up**: For new users (Google or Email)
+5. Complete authentication
+6. You'll see "Success - Completing authentication..."
+7. The window will redirect back to your client
+8. Now you can use all tools!
 
 ## 🛠️ Available Tools
-
-### `get_nutrition`
-
-Get nutritional information for a food item (per 100g).
-
-**No authentication required**
-
-**Parameters:**
-- `food` (string): Food item name (e.g., "chicken breast", "apple")
-
-**Example:**
-```
-User: What are the macros for salmon?
-Claude: [Uses get_nutrition tool]
-```
 
 ### `save_meal`
 
 Save a meal to your personal tracking database.
 
-**Requires authentication**
+**🔐 Requires Authentication**
 
 **Parameters:**
-- `meal` (enum): breakfast, morning_snack, lunch, afternoon_snack, dinner, extra
-- `meal_day` (string): Date in YYYY-MM-DD format
-- `calories` (integer): Total calories
-- `macros` (object): Macronutrients (e.g., `{"protein": 25, "carbs": 30, "fat": 10}`)
-- `meal_items` (object): Items with quantities (e.g., `{"chicken": 150, "rice": 100}`)
+- `meal` (enum): `breakfast`, `morning_snack`, `lunch`, `afternoon_snack`, `dinner`, `extra`
+- `meal_day` (string): Date in YYYY-MM-DD format (e.g., "2025-11-05")
+- `calories` (integer): Total calories for the meal
+- `macros` (object): Macronutrients as key-value pairs
+  - Example: `{"protein": 25.5, "carbs": 30.2, "fat": 10.5}`
+- `meal_items` (object): Food items with quantities in grams
+  - Example: `{"chicken breast": 150, "rice": 100, "broccoli": 80}`
 
-**Example:**
+**Example Usage:**
 ```
-User: Save my breakfast: 2 eggs and toast
-Claude: [Uses get_nutrition to calculate macros, then save_meal]
+User: "I had 150g chicken breast, 100g rice, and 80g broccoli for lunch"
+Claude: [Calculates macros and saves with save_meal tool]
 ```
 
 ### `get_meal_data`
 
-Query your meal history.
+Query your meal history with flexible filtering and aggregation.
 
-**Requires authentication**
+**🔐 Requires Authentication**
 
 **Parameters:**
-- `query_type` (enum): recent, by_date, date_range, by_meal_type, daily_totals, weekly_totals, monthly_totals
-- `limit` (integer, optional): Number of records (default: 10)
-- `date` (string, optional): Date in YYYY-MM-DD
-- `end_date` (string, optional): End date for ranges
-- `meal_type` (string, optional): Filter by meal type
+- `query_type` (required, enum):
+  - `recent`: Last N meals
+  - `by_date`: Meals on a specific day
+  - `date_range`: Meals between two dates
+  - `by_meal_type`: Filter by meal type (breakfast, lunch, etc.)
+  - `daily_totals`: Aggregate calories and macros by day
+  - `weekly_totals`: Aggregate by week
+  - `monthly_totals`: Aggregate by month
+- `limit` (optional, integer): Number of records to return (default: 10, for `recent` and `by_meal_type`)
+- `date` (optional, string): Date in YYYY-MM-DD format (for `by_date`, or start date for `date_range`)
+- `end_date` (optional, string): End date for `date_range` queries
+- `meal_type` (optional, enum): Filter by meal type for `by_meal_type` queries
 
-**Examples:**
+**Example Usage:**
 ```
-User: Show me my last 10 meals
-Claude: [Uses get_meal_data with query_type: "recent"]
+User: "What did I eat yesterday?"
+Claude: [Uses get_meal_data with query_type: "by_date"]
 
-User: What did I eat yesterday?
-Claude: [Uses get_meal_data with query_type: "by_date", date: "2025-01-26"]
+User: "Show me my last 5 meals"
+Claude: [Uses get_meal_data with query_type: "recent", limit: 5]
 
-User: Show my daily calorie totals for the past week
+User: "What are my daily calorie totals this week?"
 Claude: [Uses get_meal_data with query_type: "daily_totals"]
+
+User: "Show all my breakfast meals"
+Claude: [Uses get_meal_data with query_type: "by_meal_type", meal_type: "breakfast"]
 ```
 
-## 📊 Monitoring & Logs
+## 🐳 Docker Deployment
+
+### Using Docker Compose (Recommended for Local)
+
+```bash
+docker-compose up --build
+```
+
+### Manual Docker
+
+```bash
+# Build the image
+docker build -t macro-mcp .
+
+# Run the container
+docker run -p 3000:3000 --env-file .env macro-mcp
+```
+
+The Dockerfile uses a multi-stage build with Alpine Linux for a minimal image size (~100MB).
+
+## ☁️ Production Deployment
+
+### Railway (Recommended)
+
+1. **Connect Your Repository:**
+   - Go to [Railway](https://railway.app/)
+   - Click "New Project" → "Deploy from GitHub repo"
+   - Select your macro-mcp repository
+
+2. **Set Environment Variables:**
+   ```
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_ANON_KEY=your_anon_key_here
+   OAUTH_CLIENT_SECRET=your_random_secret_here
+   NODE_ENV=production
+   LOG_LEVEL=info
+   ```
+   
+   **Note:** Railway automatically provides `PORT` - don't set it!
+
+3. **Get Your Deployment URL:**
+   - Railway provides a URL like `https://macro-mcp-production.up.railway.app`
+
+4. **Update BASE_URL:**
+   - Add to Railway environment variables:
+     ```
+     BASE_URL=https://macro-mcp-production.up.railway.app
+     ```
+
+5. **Update Supabase Redirect URLs:**
+   - Go to Supabase Dashboard → Authentication → URL Configuration
+   - Add: `https://macro-mcp-production.up.railway.app/oauth/supabase-callback.html`
+
+6. **Deploy:**
+   - Railway auto-deploys on push to main
+   - Check health: `https://your-app.railway.app/health`
+
+### Other Platforms
+
+#### AWS ECS/Fargate
+
+```bash
+# Push to ECR
+docker build -t macro-mcp .
+docker tag macro-mcp:latest <ecr-repo>:latest
+docker push <ecr-repo>:latest
+
+# Create ECS task with environment variables
+# Deploy as ECS service
+```
+
+#### Google Cloud Run
+
+```bash
+gcloud run deploy macro-mcp \
+  --image gcr.io/<project-id>/macro-mcp \
+  --platform managed \
+  --region us-central1 \
+  --set-env-vars="NODE_ENV=production,SUPABASE_URL=...,SUPABASE_ANON_KEY=...,OAUTH_CLIENT_SECRET=..."
+```
+
+#### Fly.io
+
+```bash
+flyctl launch
+flyctl secrets set SUPABASE_URL=... SUPABASE_ANON_KEY=... OAUTH_CLIENT_SECRET=...
+flyctl deploy
+```
+
+## 🔐 Security Features
+
+- ✅ **OAuth 2.0 with PKCE**: Industry-standard authentication
+- ✅ **Multiple Sign-In Methods**: Google OAuth + Email/Password
+- ✅ **Row-Level Security (RLS)**: Database-enforced user isolation
+- ✅ **JWT Token Validation**: Every API request is verified
+- ✅ **AsyncLocalStorage**: Request-scoped authentication context
+- ✅ **HTTPS Required**: Production enforces SSL
+- ✅ **Secrets Management**: Environment variables only
+- ✅ **Non-root Container**: Docker runs as unprivileged user
+- ✅ **Input Validation**: All tool parameters are validated
+
+## 📊 Monitoring & Debugging
 
 ### Structured Logging
 
-All logs are output as JSON for easy parsing:
+All logs are JSON-formatted for easy parsing:
 
 ```json
 {
-  "timestamp": "2025-01-27T10:30:00.000Z",
-  "level": "INFO",
-  "message": "MCP server started",
-  "port": 3000
+  "level": "info",
+  "timestamp": "2025-11-05T10:30:00.000Z",
+  "message": "Request authenticated",
+  "user_id": "abc-123-def",
+  "path": "/mcp"
 }
 ```
 
@@ -312,195 +388,169 @@ All logs are output as JSON for easy parsing:
 Set via `LOG_LEVEL` environment variable:
 - `error`: Only errors
 - `warn`: Warnings and errors
-- `info`: General info (default)
-- `debug`: Verbose debugging
+- `info`: General information (recommended for production)
+- `debug`: Verbose debugging (use for development only)
 
-### Railway Logs
-
-View logs in Railway dashboard:
-1. Select your project
-2. Click "Deployments"
-3. View build and runtime logs
-
-## 🔒 Security Features
-
-- ✅ **OAuth 2.0 with PKCE**: Industry-standard auth flow
-- ✅ **Row-Level Security**: Database enforces user isolation
-- ✅ **JWT Token Validation**: Every request verified
-- ✅ **No Admin Access**: Server uses user-scoped tokens only
-- ✅ **HTTPS Required**: Production enforces SSL
-- ✅ **Secrets Management**: Environment variables only
-- ✅ **Non-root Container**: Docker runs as unprivileged user
-
-## 🐳 Docker Details
-
-### Multi-stage Build
-
-The Dockerfile uses a lean Alpine-based image:
-- Base image: `node:20-alpine`
-- Production dependencies only
-- Non-root user for security
-- Health checks built-in
-
-### Health Checks
-
-Both Docker and Railway use `/health` endpoint:
+### Testing with MCP Inspector
 
 ```bash
-curl http://localhost:3000/health
+# Terminal 1: Start your server
+npm run dev
+
+# Terminal 2: Launch inspector
+npm run inspector
 ```
 
-Response:
-```json
-{
-  "status": "ok",
-  "service": "macro-mcp",
-  "version": "2.0.0",
-  "timestamp": "2025-01-27T10:30:00.000Z"
-}
-```
-
-## 🌍 Deploying to Other Platforms
-
-This Docker container is **platform-agnostic** and can run anywhere:
-
-### AWS ECS/Fargate
-
-1. Push image to ECR:
-   ```bash
-   docker build -t macro-mcp .
-   docker tag macro-mcp:latest <ecr-repo-url>:latest
-   docker push <ecr-repo-url>:latest
-   ```
-
-2. Create ECS task definition
-3. Set environment variables in task definition
-4. Deploy as ECS service
-
-### Google Cloud Run
-
-```bash
-gcloud run deploy macro-mcp \
-  --image gcr.io/<project-id>/macro-mcp \
-  --platform managed \
-  --region us-central1 \
-  --set-env-vars="NODE_ENV=production,SUPABASE_URL=..."
-```
-
-### Azure Container Instances
-
-```bash
-az container create \
-  --resource-group myResourceGroup \
-  --name macro-mcp \
-  --image <your-image> \
-  --ports 3000 \
-  --environment-variables NODE_ENV=production ...
-```
+Opens at `http://localhost:6274` for visual testing of tools and OAuth flow.
 
 ## 🆘 Troubleshooting
 
 ### "Authentication required" error
 
-**Cause:** User not logged in or token expired
+**Cause:** Token expired or not authenticated
 
-**Fix:**
-1. In Claude Desktop, disconnect and reconnect the MCP server
-2. Complete OAuth flow again
+**Solution:**
+1. In your client, disconnect and reconnect the MCP server
+2. Complete the OAuth flow again
 
 ### "Database error: permission denied"
 
-**Cause:** RLS policy not configured correctly
+**Cause:** RLS policies not set up correctly
 
-**Fix:**
-1. Go to Supabase SQL Editor
-2. Verify RLS policies on `fact_meal_macros`:
-   ```sql
-   -- Check policies
-   SELECT * FROM pg_policies WHERE tablename = 'fact_meal_macros';
+**Solution:**
+```sql
+-- Check existing policies
+SELECT * FROM pg_policies WHERE tablename = 'fact_meal_macros';
 
-   -- Should have policies like:
-   -- Users can view own meals: auth.uid() = user_id
-   -- Users can insert own meals: auth.uid() = user_id
-   ```
+-- Ensure you have the policies listed in the setup section
+```
 
-### OAuth redirect loop
+### OAuth redirect loop / "Missing required OAuth parameters"
 
-**Cause:** Redirect URL mismatch
+**Cause:** Redirect URL mismatch or missing OAuth state
 
-**Fix:**
-1. Check Supabase Auth → URL Configuration
-2. Ensure exact match: `https://your-app.railway.app/oauth/callback`
-3. Update `BASE_URL` in environment variables
+**Solution:**
+1. Check Supabase Auth settings match your BASE_URL exactly
+2. Ensure `/oauth/supabase-callback.html` is in the redirect URLs list
+3. For Cursor/ChatGPT: The server handles missing OAuth params automatically
 
-### Railway build fails
+### Tools not showing up in client
 
-**Cause:** Missing environment variables or Docker build error
+**Cause:** Server not properly connected
 
-**Fix:**
-1. Check Railway build logs
-2. Verify all required env vars are set
-3. Test Docker build locally: `docker build -t test .`
+**Solution:**
+1. Check server is running: `curl http://localhost:3000/health`
+2. Verify config file has correct URL
+3. Restart your AI client
+4. Check client logs for connection errors
 
-### MCP Inspector can't connect
+### Signup page shows "Configuration error"
 
-**Cause:** Server not running or wrong URL in config
+**Cause:** Supabase credentials not properly injected
 
-**Fix:**
-1. Ensure server is running: `npm run dev`
-2. Check `mcp-config.json` has correct URL
-3. Verify port 3000 is not blocked
+**Solution:**
+1. Ensure server is running (not accessing static file directly)
+2. Verify SUPABASE_URL and SUPABASE_ANON_KEY are set in `.env`
+3. Restart the server after changing environment variables
 
-## 📝 Development Notes
-
-### Project Structure
+## 📁 Project Structure
 
 ```
 macro-mcp/
 ├── src/
 │   ├── index.js              # Express app entry point
 │   ├── config/
-│   │   └── env.js            # Environment validation
+│   │   └── env.js            # Environment variable validation
 │   ├── routes/
-│   │   ├── oauth.js          # OAuth 2.0 endpoints
-│   │   └── mcp.js            # MCP protocol handler
+│   │   ├── oauth.js          # OAuth 2.0 + PKCE implementation
+│   │   └── mcp.js            # MCP protocol handler (uses AsyncLocalStorage)
 │   ├── tools/
-│   │   ├── nutrition.js      # Nutritionix integration
 │   │   └── meals.js          # Meal tracking tools
 │   └── utils/
-│       └── logger.js         # Structured logging
-├── Dockerfile                # Docker image definition
-├── docker-compose.yml        # Local Docker orchestration
-├── railway.json              # Railway configuration
-├── package.json              # Dependencies
-├── .env.example              # Environment template
-└── mcp-config.json           # MCP Inspector config
+│       └── logger.js         # Structured JSON logging
+├── public/
+│   └── oauth/
+│       ├── signup.html       # Modern auth UI (sign in + sign up)
+│       └── supabase-callback.html  # OAuth callback handler
+├── Dockerfile                # Multi-stage Alpine build
+├── docker-compose.yml        # Local development with Docker
+├── railway.json              # Railway platform configuration
+├── package.json              # Dependencies and scripts
+├── .env.example              # Environment variable template
+├── mcp-config.json           # MCP Inspector configuration
+└── README.md                 # This file
 ```
+
+## 🧪 Development
 
 ### Adding New Tools
 
-1. Create tool definition in `src/tools/`
-2. Register tool in `src/routes/mcp.js`
-3. Update README with tool documentation
+1. Create tool definition in `src/tools/yourTool.js`:
+```javascript
+export function getYourTools() {
+  return [{
+    name: 'your_tool_name',
+    description: 'What your tool does',
+    inputSchema: { /* JSON schema */ },
+    requiresAuth: true, // or false
+    handler: async (args, authInfo) => {
+      // Your logic here
+      return {
+        content: [{
+          type: 'text',
+          text: 'Result'
+        }]
+      };
+    }
+  }];
+}
+```
 
-### Updating Dependencies
+2. Register in `src/routes/mcp.js`:
+```javascript
+import { getYourTools } from '../tools/yourTool.js';
+
+const yourTools = getYourTools();
+const allTools = [...mealTools, ...yourTools];
+```
+
+3. Update README documentation
+
+### Running Tests
 
 ```bash
-npm update
-npm audit fix
+# Unit tests (when implemented)
+npm test
+
+# Manual testing with MCP Inspector
+npm run inspector
 ```
 
 ## 📜 License
 
-MIT
+MIT License - See LICENSE file for details
 
-## 🙏 Credits
+## 🤝 Contributing
 
-- [MCP Protocol](https://github.com/modelcontextprotocol) - Model Context Protocol
-- [Nutritionix API](https://www.nutritionix.com/) - Nutrition data
-- [Supabase](https://supabase.com/) - Auth and database
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 💬 Support
+
+- **Issues**: Open an issue on GitHub
+- **Documentation**: Check this README and troubleshooting section
+- **MCP Specification**: [Model Context Protocol](https://modelcontextprotocol.io)
+
+## 🙏 Acknowledgments
+
+- [Model Context Protocol](https://github.com/modelcontextprotocol) - Protocol specification
+- [Supabase](https://supabase.com/) - Authentication and database
 - [Express.js](https://expressjs.com/) - Web framework
+- [Railway](https://railway.app/) - Deployment platform
 
 ---
 
-**Need help?** Open an issue on GitHub or check the troubleshooting section above.
+**Built with ❤️ for the MCP community**

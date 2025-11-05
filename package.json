@@ -1,7 +1,7 @@
 {
   "name": "macro-mcp",
   "version": "2.0.0",
-  "description": "MCP server for nutritional tracking with Supabase authentication - Express.js + Docker",
+  "description": "MCP server for macro tracking with Supabase authentication and OAuth - Express.js + Docker",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -17,11 +17,12 @@
     "mcp",
     "nutrition",
     "macronutrients",
+    "macro-tracking",
     "calories",
-    "nutritionix",
     "supabase",
     "oauth",
-    "express"
+    "express",
+    "model-context-protocol"
   ],
   "author": "",
   "license": "MIT",

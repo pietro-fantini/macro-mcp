@@ -3,88 +3,178 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sign Up - Macro MCP</title>
+  <title>Macro MCP Authentication</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      margin: 0;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 1rem;
     }
+
     .container {
       background: white;
-      padding: 3rem;
-      border-radius: 1rem;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      text-align: center;
-      max-width: 400px;
+      padding: 2.5rem;
+      border-radius: 1.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
       width: 100%;
+      max-width: 420px;
+      animation: slideUp 0.4s ease-out;
     }
-    h1 {
-      color: #333;
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo-emoji {
+      font-size: 3rem;
       margin-bottom: 0.5rem;
-      font-size: 1.75rem;
     }
+
+    h1 {
+      color: #1f2937;
+      margin-bottom: 0.5rem;
+      font-size: 1.875rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
     .subtitle {
       color: #6b7280;
       font-size: 0.875rem;
       margin-bottom: 2rem;
+      text-align: center;
     }
+
+    .tabs {
+      display: flex;
+      background: #f3f4f6;
+      border-radius: 0.75rem;
+      padding: 0.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.625rem;
+      border: none;
+      background: transparent;
+      color: #6b7280;
+      font-weight: 500;
+      font-size: 0.875rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      background: white;
+      color: #667eea;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .tab:hover:not(.active) {
+      color: #4b5563;
+    }
+
     .btn {
       background: #667eea;
       color: white;
       border: none;
-      padding: 1rem 2rem;
-      border-radius: 0.5rem;
-      font-size: 1rem;
+      padding: 0.875rem 1.5rem;
+      border-radius: 0.75rem;
+      font-size: 0.9375rem;
       font-weight: 600;
       cursor: pointer;
       text-decoration: none;
-      display: block;
-      width: 100%;
-      transition: background 0.3s;
-      margin-bottom: 1rem;
-      box-sizing: border-box;
-    }
-    .btn:hover {
-      background: #5568d3;
-    }
-    .btn-google {
-      background: #4285f4;
       display: flex;
       align-items: center;
       justify-content: center;
+      width: 100%;
+      transition: all 0.2s;
       gap: 0.5rem;
+      margin-bottom: 0.75rem;
     }
-    .btn-google:hover {
-      background: #3367d6;
+
+    .btn:hover:not(:disabled) {
+      background: #5568d3;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
     }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .btn-google {
+      background: white;
+      color: #1f2937;
+      border: 1.5px solid #e5e7eb;
+    }
+
+    .btn-google:hover:not(:disabled) {
+      background: #f9fafb;
+      border-color: #d1d5db;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
     .divider {
       display: flex;
       align-items: center;
-      margin: 2rem 0;
+      margin: 1.5rem 0;
       color: #9ca3af;
-      font-size: 0.875rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
+
     .divider::before,
     .divider::after {
       content: '';
       flex: 1;
       border-bottom: 1px solid #e5e7eb;
     }
+
     .divider::before {
       margin-right: 1rem;
     }
+
     .divider::after {
       margin-left: 1rem;
     }
+
     .form-group {
-      margin-bottom: 1rem;
-      text-align: left;
+      margin-bottom: 1.25rem;
     }
+
     label {
       display: block;
       color: #374151;
@@ -92,113 +182,167 @@
       margin-bottom: 0.5rem;
       font-size: 0.875rem;
     }
+
     input {
       width: 100%;
-      padding: 0.75rem;
-      border: 1px solid #d1d5db;
-      border-radius: 0.5rem;
-      font-size: 1rem;
-      box-sizing: border-box;
-      transition: border-color 0.3s;
+      padding: 0.875rem 1rem;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 0.75rem;
+      font-size: 0.9375rem;
+      transition: all 0.2s;
+      background: #fafafa;
     }
+
     input:focus {
       outline: none;
       border-color: #667eea;
+      background: white;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
+
+    input::placeholder {
+      color: #9ca3af;
+    }
+
+    .message {
+      padding: 0.875rem 1rem;
+      border-radius: 0.75rem;
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
+      display: none;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .message.show {
+      display: block;
+    }
+
     .error {
+      background: #fef2f2;
       color: #dc2626;
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
-      display: none;
+      border: 1px solid #fecaca;
     }
-    .error.show {
-      display: block;
-    }
+
     .success {
-      color: #10b981;
-      font-size: 0.875rem;
-      margin-top: 0.5rem;
-      display: none;
+      background: #f0fdf4;
+      color: #16a34a;
+      border: 1px solid #bbf7d0;
     }
-    .success.show {
-      display: block;
-    }
+
     .spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #667eea;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top: 2px solid white;
       border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      animation: spin 1s linear infinite;
-      display: inline-block;
-      margin-right: 0.5rem;
+      width: 16px;
+      height: 16px;
+      animation: spin 0.8s linear infinite;
     }
+
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    .signin-link {
-      margin-top: 2rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid #e5e7eb;
+
+    .form-content {
+      display: none;
+    }
+
+    .form-content.active {
+      display: block;
+      animation: fadeIn 0.3s;
+    }
+
+    .password-hint {
+      font-size: 0.75rem;
       color: #6b7280;
-      font-size: 0.875rem;
+      margin-top: 0.25rem;
     }
-    .signin-link a {
-      color: #667eea;
-      text-decoration: none;
-      font-weight: 600;
-    }
-    .signin-link a:hover {
-      text-decoration: underline;
-    }
-    .btn:disabled {
-      background: #9ca3af;
-      cursor: not-allowed;
+
+    .google-icon {
+      width: 18px;
+      height: 18px;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Sign Up</h1>
-    <p class="subtitle">Create your Macro MCP account</p>
+    <div class="logo">
+      <div class="logo-emoji">🥗</div>
+      <h1>Macro MCP</h1>
+      <p class="subtitle">Track your macros with AI assistance</p>
+    </div>
 
-    <!-- Google Sign Up -->
-    <button id="googleSignupBtn" class="btn btn-google">
-      <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
-        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
-        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
-        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
-        <path fill="none" d="M0 0h48v48H0z"/>
-      </svg>
-      Continue with Google
-    </button>
+    <div class="tabs">
+      <button class="tab active" data-tab="signin">Sign In</button>
+      <button class="tab" data-tab="signup">Sign Up</button>
+    </div>
 
-    <div class="divider">OR</div>
+    <!-- Sign In Form -->
+    <div id="signinForm" class="form-content active">
+      <button id="googleSigninBtn" class="btn btn-google">
+        <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
 
-    <!-- Email/Password Sign Up Form -->
-    <form id="signupForm">
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input type="email" id="email" name="email" required placeholder="you@example.com">
-      </div>
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" name="password" required placeholder="At least 6 characters" minlength="6">
-      </div>
-      <div class="form-group">
-        <label for="confirmPassword">Confirm Password</label>
-        <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="Confirm your password">
-      </div>
-      <div id="errorMessage" class="error"></div>
-      <div id="successMessage" class="success"></div>
-      <button type="submit" id="signupBtn" class="btn">Sign Up</button>
-    </form>
+      <div class="divider">or</div>
 
-    <div class="signin-link">
-      Already have an account? <a href="#" id="signinLink">Sign in</a>
+      <form id="emailSigninForm">
+        <div class="form-group">
+          <label for="signin-email">Email</label>
+          <input type="email" id="signin-email" name="email" required placeholder="you@example.com">
+        </div>
+        <div class="form-group">
+          <label for="signin-password">Password</label>
+          <input type="password" id="signin-password" name="password" required placeholder="Enter your password">
+        </div>
+        <div id="signinErrorMessage" class="message error"></div>
+        <div id="signinSuccessMessage" class="message success"></div>
+        <button type="submit" id="signinBtn" class="btn">Sign In</button>
+      </form>
+    </div>
+
+    <!-- Sign Up Form -->
+    <div id="signupForm" class="form-content">
+      <button id="googleSignupBtn" class="btn btn-google">
+        <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="divider">or</div>
+
+      <form id="emailSignupForm">
+        <div class="form-group">
+          <label for="signup-email">Email</label>
+          <input type="email" id="signup-email" name="email" required placeholder="you@example.com">
+        </div>
+        <div class="form-group">
+          <label for="signup-password">Password</label>
+          <input type="password" id="signup-password" name="password" required placeholder="At least 6 characters" minlength="6">
+          <div class="password-hint">Must be at least 6 characters long</div>
+        </div>
+        <div class="form-group">
+          <label for="signup-confirm-password">Confirm Password</label>
+          <input type="password" id="signup-confirm-password" name="confirmPassword" required placeholder="Confirm your password">
+        </div>
+        <div id="signupErrorMessage" class="message error"></div>
+        <div id="signupSuccessMessage" class="message success"></div>
+        <button type="submit" id="signupBtn" class="btn">Create Account</button>
+      </form>
     </div>
   </div>
 
@@ -210,178 +354,194 @@
     const oauthState = urlParams.get('state');
 
     if (!oauthState) {
-      showError('Missing authentication state. Please try again.');
+      showError('Missing authentication state. Please try again.', 'signupErrorMessage');
     }
 
-    // Decode Supabase config from environment or use defaults
-    // In production, these should be set via environment variables
+    // Supabase config (will be injected by server)
     const supabaseUrl = window.SUPABASE_URL || 'YOUR_SUPABASE_URL';
     const supabaseAnonKey = window.SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY';
 
     // Validate Supabase configuration
     if (supabaseUrl === 'YOUR_SUPABASE_URL' || supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY') {
-      console.error('Supabase configuration not properly injected:', { supabaseUrl, supabaseAnonKey });
-      showError('Configuration error. Please try again or contact support.');
+      console.error('Supabase configuration not properly injected');
+      showError('Configuration error. Please try again.', 'signupErrorMessage');
     }
-
-    console.log('Initializing Supabase client with URL:', supabaseUrl);
 
     // Initialize Supabase client
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    const form = document.getElementById('signupForm');
-    const errorMessage = document.getElementById('errorMessage');
-    const successMessage = document.getElementById('successMessage');
-    const signupBtn = document.getElementById('signupBtn');
-    const googleSignupBtn = document.getElementById('googleSignupBtn');
-    const signinLink = document.getElementById('signinLink');
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabName = tab.dataset.tab;
+        
+        // Update active tab
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        
+        // Show corresponding form
+        document.querySelectorAll('.form-content').forEach(form => form.classList.remove('active'));
+        document.getElementById(`${tabName}Form`).classList.add('active');
+      });
+    });
 
-    function showError(message) {
-      errorMessage.textContent = message;
-      errorMessage.classList.add('show');
-      successMessage.classList.remove('show');
+    // Helper functions
+    function showError(message, elementId) {
+      const errorEl = document.getElementById(elementId);
+      errorEl.textContent = message;
+      errorEl.classList.add('show');
+      
+      // Hide success message
+      const successId = elementId.replace('Error', 'Success');
+      document.getElementById(successId)?.classList.remove('show');
     }
 
-    function showSuccess(message) {
-      successMessage.textContent = message;
-      successMessage.classList.add('show');
-      errorMessage.classList.remove('show');
+    function showSuccess(message, elementId) {
+      const successEl = document.getElementById(elementId);
+      successEl.textContent = message;
+      successEl.classList.add('show');
+      
+      // Hide error message
+      const errorId = elementId.replace('Success', 'Error');
+      document.getElementById(errorId)?.classList.remove('show');
+    }
+
+    function hideMessages(errorId, successId) {
+      document.getElementById(errorId)?.classList.remove('show');
+      document.getElementById(successId)?.classList.remove('show');
     }
 
     function setLoading(isLoading, button) {
       if (isLoading) {
         button.disabled = true;
-        const originalText = button.innerHTML;
-        button.dataset.originalText = originalText;
-        button.innerHTML = '<span class="spinner"></span>Processing...';
+        button.dataset.originalText = button.innerHTML;
+        button.innerHTML = '<span class="spinner"></span><span>Processing...</span>';
       } else {
         button.disabled = false;
         button.innerHTML = button.dataset.originalText || button.innerHTML;
       }
     }
 
-    // Handle email/password signup
-    form.addEventListener('submit', async (e) => {
+    async function handleOAuthContinuation(session) {
+      try {
+        const response = await fetch('/oauth/callback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_token: session.access_token,
+            refresh_token: session.refresh_token,
+            state: oauthState
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error_description || 'Failed to complete authentication');
+        }
+
+        const responseData = await response.json();
+        
+        // Redirect after brief delay
+        setTimeout(() => {
+          window.location.href = responseData.redirect_url;
+        }, 1000);
+      } catch (error) {
+        throw new Error('Failed to complete authentication: ' + error.message);
+      }
+    }
+
+    // Email Sign In
+    document.getElementById('emailSigninForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('signin-email').value;
+      const password = document.getElementById('signin-password').value;
+      const signinBtn = document.getElementById('signinBtn');
+      
+      hideMessages('signinErrorMessage', 'signinSuccessMessage');
+      setLoading(true, signinBtn);
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) throw error;
+
+        if (data?.session) {
+          showSuccess('Successfully signed in! Redirecting...', 'signinSuccessMessage');
+          await handleOAuthContinuation(data.session);
+        } else {
+          throw new Error('No session returned');
+        }
+      } catch (error) {
+        console.error('Sign in error:', error);
+        showError(error.message || 'Sign in failed. Please check your credentials.', 'signinErrorMessage');
+        setLoading(false, signinBtn);
+      }
+    });
+
+    // Email Sign Up
+    document.getElementById('emailSignupForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      const confirmPassword = document.getElementById('confirmPassword').value;
+      const email = document.getElementById('signup-email').value;
+      const password = document.getElementById('signup-password').value;
+      const confirmPassword = document.getElementById('signup-confirm-password').value;
+      const signupBtn = document.getElementById('signupBtn');
 
-      // Validate passwords match
       if (password !== confirmPassword) {
-        showError('Passwords do not match');
+        showError('Passwords do not match', 'signupErrorMessage');
         return;
       }
 
+      hideMessages('signupErrorMessage', 'signupSuccessMessage');
       setLoading(true, signupBtn);
-      errorMessage.classList.remove('show');
-      successMessage.classList.remove('show');
 
       try {
-        // Sign up the user with Supabase
         const { data, error } = await supabase.auth.signUp({
-          email: email,
-          password: password,
+          email,
+          password,
           options: {
             emailRedirectTo: `${window.location.origin}/oauth/supabase-callback.html?state=${oauthState}`
           }
         });
 
-        if (error) {
-          throw error;
-        }
+        if (error) throw error;
 
         if (data?.user) {
-          // Check if this email already exists
+          // Check if email already exists
           if (data.user.identities && data.user.identities.length === 0) {
-            showError('An account with this email already exists. Please sign in instead.');
+            showError('An account with this email already exists. Please sign in.', 'signupErrorMessage');
             setLoading(false, signupBtn);
             return;
           }
 
           // Check if email confirmation is required
-          const needsConfirmation = data.user.confirmation_sent_at || !data.session;
-          
-          if (needsConfirmation) {
-            // Email confirmation required
-            showSuccess('Account created! Please check your email to confirm your account, then sign in.');
-            setLoading(false, signupBtn);
-            
-            // After 5 seconds, offer to go back to sign in
-            setTimeout(() => {
-              const stateDecoded = JSON.parse(atob(oauthState.replace(/-/g, '+').replace(/_/g, '/')));
-              const authUrl = new URL('/oauth/authorize', window.location.origin);
-              authUrl.searchParams.set('redirect_uri', stateDecoded.redirectUri);
-              authUrl.searchParams.set('response_type', 'code');
-              authUrl.searchParams.set('state', stateDecoded.clientState);
-              authUrl.searchParams.set('client_id', stateDecoded.clientId);
-              authUrl.searchParams.set('scope', stateDecoded.scope);
-              authUrl.searchParams.set('code_challenge', stateDecoded.codeChallenge);
-              authUrl.searchParams.set('code_challenge_method', stateDecoded.codeChallengeMethod);
-              window.location.href = authUrl.toString();
-            }, 5000);
-          } else if (data.session) {
-            // User is immediately signed in (no email confirmation required)
-            showSuccess('Account created successfully! Completing authentication...');
-            
-            try {
-              // Continue OAuth flow by posting to callback
-              const response = await fetch('/oauth/callback', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  access_token: data.session.access_token,
-                  refresh_token: data.session.refresh_token,
-                  state: oauthState
-                })
-              });
-
-              if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error_description || 'Failed to complete authentication');
-              }
-
-              const responseData = await response.json();
-              
-              // Show success briefly then redirect
-              setTimeout(() => {
-                window.location.href = responseData.redirect_url;
-              }, 1000);
-            } catch (oauthError) {
-              console.error('OAuth flow error:', oauthError);
-              setLoading(false, signupBtn);
-              showError('Failed to complete authentication. ' + oauthError.message);
+          if (data.user.confirmed_at || data.session) {
+            showSuccess('Account created! Redirecting...', 'signupSuccessMessage');
+            if (data.session) {
+              await handleOAuthContinuation(data.session);
             }
           } else {
-            // No session and no confirmation - unexpected state
+            showSuccess('Account created! Please check your email to confirm your account.', 'signupSuccessMessage');
             setLoading(false, signupBtn);
-            throw new Error('Unexpected signup state: no session or confirmation');
           }
         }
-
       } catch (error) {
-        console.error('Signup error:', error);
-        showError(error.message || 'An error occurred during signup. Please try again.');
+        console.error('Sign up error:', error);
+        showError(error.message || 'Sign up failed. Please try again.', 'signupErrorMessage');
         setLoading(false, signupBtn);
       }
     });
 
-    // Handle Google signup
-    googleSignupBtn.addEventListener('click', async (e) => {
-      e.preventDefault();
-      setLoading(true, googleSignupBtn);
-      errorMessage.classList.remove('show');
+    // Google Sign In
+    document.getElementById('googleSigninBtn').addEventListener('click', async () => {
+      setLoading(true, document.getElementById('googleSigninBtn'));
 
       try {
-        // Build redirect URL with OAuth state
         const callbackUrl = `${window.location.origin}/oauth/supabase-callback.html?state=${oauthState}`;
-
-        console.log('Initiating Google OAuth with callback:', callbackUrl);
-
-        // Sign in with Google (this works for both signup and signin)
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
@@ -393,51 +553,38 @@
           }
         });
 
-        if (error) {
-          console.error('Google OAuth error:', error);
-          throw error;
-        }
-
-        // If we reach here, check if the redirect happened
-        console.log('Google OAuth initiated:', data);
-        
-        // The redirect should happen automatically
-        // If it doesn't happen within 3 seconds, show an error
-        setTimeout(() => {
-          showError('Google sign-in window did not open. Please check your popup blocker and try again.');
-          setLoading(false, googleSignupBtn);
-        }, 3000);
-
+        if (error) throw error;
       } catch (error) {
-        console.error('Google signup error:', error);
-        showError(error.message || 'An error occurred with Google signup. Please try again.');
-        setLoading(false, googleSignupBtn);
+        console.error('Google sign in error:', error);
+        showError(error.message || 'Google sign in failed.', 'signinErrorMessage');
+        setLoading(false, document.getElementById('googleSigninBtn'));
       }
     });
 
-    // Handle sign in link
-    signinLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      // Parse the original OAuth state to get the parameters
+    // Google Sign Up
+    document.getElementById('googleSignupBtn').addEventListener('click', async () => {
+      setLoading(true, document.getElementById('googleSignupBtn'));
+
       try {
-        const stateDecoded = JSON.parse(atob(oauthState.replace(/-/g, '+').replace(/_/g, '/')));
-        // Redirect back to authorization page preserving all OAuth params
-        const authUrl = new URL('/oauth/authorize', window.location.origin);
-        authUrl.searchParams.set('redirect_uri', stateDecoded.redirectUri);
-        authUrl.searchParams.set('response_type', 'code');
-        authUrl.searchParams.set('state', stateDecoded.clientState);
-        authUrl.searchParams.set('client_id', stateDecoded.clientId);
-        authUrl.searchParams.set('scope', stateDecoded.scope);
-        authUrl.searchParams.set('code_challenge', stateDecoded.codeChallenge);
-        authUrl.searchParams.set('code_challenge_method', stateDecoded.codeChallengeMethod);
-        window.location.href = authUrl.toString();
-      } catch (err) {
-        // Fallback: just redirect to authorize endpoint
-        console.error('Error decoding state:', err);
-        window.location.href = '/oauth/authorize';
+        const callbackUrl = `${window.location.origin}/oauth/supabase-callback.html?state=${oauthState}`;
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: callbackUrl,
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'consent'
+            }
+          }
+        });
+
+        if (error) throw error;
+      } catch (error) {
+        console.error('Google sign up error:', error);
+        showError(error.message || 'Google sign up failed.', 'signupErrorMessage');
+        setLoading(false, document.getElementById('googleSignupBtn'));
       }
     });
   </script>
 </body>
 </html>
-
