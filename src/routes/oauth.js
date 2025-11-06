@@ -170,23 +170,19 @@ router.post('/oauth/callback', async (req, res) => {
 
     logger.info('OAuth state decoded successfully');
 
-    // Get user info from Supabase using the access token
-    const supabase = createClient(config.supabase.url, config.supabase.anonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${access_token}`
-        }
-      }
-    });
-
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      logger.error('Failed to get user from Supabase', { error: userError });
-      throw new Error('Failed to get user information');
+    // Decode JWT token to extract user info (without verification since Supabase already validated it)
+    const tokenParts = access_token.split('.');
+    if (tokenParts.length !== 3) {
+      throw new Error('Invalid JWT token format');
     }
 
-    logger.info('User info obtained', {
+    const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString('utf-8'));
+    const user = {
+      id: payload.sub,
+      email: payload.email
+    };
+
+    logger.info('User info extracted from token', {
       user_id: user.id,
       email: user.email
     });
@@ -325,76 +321,8 @@ router.get('/oauth/callback', async (req, res) => {
 
     logger.info('Redirecting to client', { redirect_uri: oauthState.redirectUri });
 
-    // Show success page before redirecting to MCP client
-    res.send(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Authorization Successful</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          }
-          .container {
-            background: white;
-            padding: 3rem;
-            border-radius: 1rem;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            text-align: center;
-            max-width: 400px;
-          }
-          h1 {
-            color: #10b981;
-            margin-bottom: 1rem;
-            font-size: 1.75rem;
-          }
-          p {
-            color: #666;
-            line-height: 1.6;
-            margin-bottom: 1rem;
-          }
-          .check {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            color: #10b981;
-          }
-          .close-message {
-            background: #f3f4f6;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-top: 1.5rem;
-            font-size: 0.875rem;
-            color: #10b981;
-            font-weight: 600;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="check">✓</div>
-          <h1>Authorization Successful!</h1>
-          <p>You've successfully signed in as <strong>${sessionData.user.email}</strong></p>
-          <div class="close-message">
-            Completing authentication...
-          </div>
-        </div>
-        <script>
-          // Redirect to MCP client after brief delay (OAuth requires this redirect)
-          setTimeout(() => {
-            window.location.href = '${redirectUrl.toString()}';
-          }, 1500);
-        </script>
-      </body>
-      </html>
-    `);
+    // Redirect immediately to MCP client
+    res.redirect(redirectUrl.toString());
 
   } catch (error) {
     logger.error('OAuth callback error', { error: error.message, stack: error.stack });

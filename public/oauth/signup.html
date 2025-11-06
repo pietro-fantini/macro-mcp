@@ -441,10 +441,8 @@
 
         const responseData = await response.json();
         
-        // Redirect after brief delay
-        setTimeout(() => {
-          window.location.href = responseData.redirect_url;
-        }, 1000);
+        // Redirect immediately
+        window.location.replace(responseData.redirect_url);
       } catch (error) {
         throw new Error('Failed to complete authentication: ' + error.message);
       }
